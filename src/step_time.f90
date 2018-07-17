@@ -5,12 +5,15 @@ module step_time
 
    use communications, only: transp_m2r, m2r_fields, transp_r2m, r2m_fields, &
        &                     gather_from_mloc_to_rank0, my_reduce_mean,      &
-       &                     scatter_from_rank0_to_mloc
+       &                     scatter_from_rank0_to_mloc, transp_buff_m2r,    &
+       &                     m2r_buff_fields, transp_buff_r2m, r2m_buff_fields
    use fields, only: us_Mloc, us_Rloc, up_Mloc, up_Rloc, temp_Mloc,     &
        &             temp_Rloc, om_Rloc, om_Mloc, psi_Mloc, dtemp_Mloc, &
-       &             dom_Mloc, temp_hat_Mloc, psi_hat_Mloc
+       &             dom_Mloc, temp_hat_Mloc, psi_hat_Mloc,             &
+       &             fields_container_Rloc, fields_container_Mloc
    use fieldsLast, only: dpsidt_Rloc, dtempdt_Rloc, dVsT_Rloc, dVsT_Mloc, &
-       &                 dVsOm_Rloc, dVsOm_Mloc, buo_Mloc, dpsidt, dTdt
+       &                 dVsOm_Rloc, dVsOm_Mloc, buo_Mloc, dpsidt, dTdt,  &
+       &                 dt_fields_container_Rloc, dt_fields_container_Mloc
    use courant_mod, only: dt_courant
    use blocking, only: nRstart, nRstop
    use constants, only: half, one
@@ -191,10 +194,12 @@ contains
                !-- MPI transpositions from m-distributed to r-distributed
                !-------------------
                runStart = MPI_Wtime()
-               call transp_m2r(m2r_fields, us_Mloc, us_Rloc)
-               call transp_m2r(m2r_fields, up_Mloc, up_Rloc)
-               call transp_m2r(m2r_fields, temp_Mloc, temp_Rloc)
-               call transp_m2r(m2r_fields, om_Mloc, om_Rloc)
+               call transp_buff_m2r(m2r_buff_fields, fields_container_Mloc, &
+                    &               fields_container_Rloc)
+               ! call transp_m2r(m2r_fields, us_Mloc, us_Rloc)
+               ! call transp_m2r(m2r_fields, up_Mloc, up_Rloc)
+               ! call transp_m2r(m2r_fields, temp_Mloc, temp_Rloc)
+               ! call transp_m2r(m2r_fields, om_Mloc, om_Rloc)
                runStop = MPI_Wtime()
                if (runStop>runStart) then
                   n_mpi_comms  =n_mpi_comms+1
@@ -219,12 +224,14 @@ contains
                !-- MPI transpositions from r-distributed to m-distributed
                !------------------
                runStart = MPI_Wtime()
+               call transp_buff_r2m(r2m_buff_fields, dt_fields_container_Rloc, &
+                    &               dt_fields_container_Mloc)
                call transp_r2m(r2m_fields, dtempdt_Rloc, &
                     &          dTdt%expl(:,:,tscheme%istage))
                call transp_r2m(r2m_fields, dpsidt_Rloc, &
                     &          dpsidt%expl(:,:,tscheme%istage))
-               call transp_r2m(r2m_fields, dVsT_Rloc, dVsT_Mloc)
-               call transp_r2m(r2m_fields, dVsOm_Rloc, dVsOm_Mloc)
+               ! call transp_r2m(r2m_fields, dVsT_Rloc, dVsT_Mloc)
+               ! call transp_r2m(r2m_fields, dVsOm_Rloc, dVsOm_Mloc)
                runStop = MPI_Wtime()
                if (runStop>runStart) then
                   run_time_mpi_comms=run_time_mpi_comms+(runStop-runStart)

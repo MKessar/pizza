@@ -15,14 +15,17 @@ module fields
    private
  
    !-- Velocity potentials:
-   complex(cp), allocatable, public :: temp_Mloc(:,:), psi_Mloc(:,:)
-   complex(cp), allocatable, public :: temp_Rloc(:,:), dtemp_Mloc(:,:)
-   complex(cp), allocatable, public :: om_Rloc(:,:), om_Mloc(:,:)
+   complex(cp), allocatable, public :: psi_Mloc(:,:)
+   complex(cp), allocatable, public :: dtemp_Mloc(:,:)
    complex(cp), allocatable, public :: dom_Mloc(:,:)
    complex(cp), allocatable, public :: work_Mloc(:,:)
+   complex(cp), pointer, public :: temp_Mloc(:,:), om_Mloc(:,:)
+   complex(cp), pointer, public :: us_Mloc(:,:), up_Mloc(:,:)
+   complex(cp), allocatable, target, public :: fields_container_Mloc(:,:,:)
 
-   complex(cp), allocatable, public :: us_Mloc(:,:), up_Mloc(:,:)
-   complex(cp), allocatable, public :: us_Rloc(:,:), up_Rloc(:,:)
+   complex(cp), pointer, public :: us_Rloc(:,:), up_Rloc(:,:)
+   complex(cp), pointer, public :: om_Rloc(:,:), temp_Rloc(:,:)
+   complex(cp), allocatable, target, public :: fields_container_Rloc(:,:,:)
 
    complex(cp), allocatable, public :: psi_hat_Mloc(:,:), temp_hat_Mloc(:,:)
  
@@ -32,16 +35,18 @@ contains
 
    subroutine initialize_fields
 
-      allocate( temp_Mloc(nMStart:nMstop,n_r_max) )
+      allocate( fields_container_Mloc(nMstart:nMstop, n_r_max, 4) )
       allocate( dtemp_Mloc(nMStart:nMstop,n_r_max) )
       allocate( psi_Mloc(nMStart:nMstop,n_r_max) )
-      allocate( om_Mloc(nMStart:nMstop,n_r_max) )
       allocate( dom_Mloc(nMStart:nMstop,n_r_max) )
-      allocate( us_Mloc(nMStart:nMstop,n_r_max) )
-      allocate( up_Mloc(nMStart:nMstop,n_r_max) )
       allocate( work_Mloc(nMStart:nMstop,n_r_max) )
       bytes_allocated = bytes_allocated + &
       &                 8*(nMstop-nMstart+1)*n_r_max*SIZEOF_DEF_COMPLEX
+
+      temp_Mloc(nMstart:,1:) => fields_container_MLoc(nMstart:,1:,1)
+      us_Mloc(nMstart:,1:)   => fields_container_MLoc(nMstart:,1:,2)
+      up_Mloc(nMstart:,1:)   => fields_container_MLoc(nMstart:,1:,3)
+      om_Mloc(nMstart:,1:)   => fields_container_MLoc(nMstart:,1:,4)
 
       temp_Mloc(:,:) =zero
       dtemp_Mloc(:,:)=zero
@@ -65,12 +70,13 @@ contains
          allocate (psi_hat_Mloc(0,0), temp_hat_Mloc(0,0))
       end if
 
-      allocate( temp_Rloc(n_m_max,nRstart:nRstop) )
-      allocate( us_Rloc(n_m_max,nRstart:nRstop) )
-      allocate( up_Rloc(n_m_max,nRstart:nRstop) )
-      allocate( om_Rloc(n_m_max,nRstart:nRstop) )
+      allocate( fields_container_Rloc(n_m_max, nRstart:nRstop, 4) )
       bytes_allocated = bytes_allocated + &
       &                 4*n_m_max*(nRstop-nRstart+1)*SIZEOF_DEF_COMPLEX
+      temp_Rloc(1:,nRstart:) => fields_container_RLoc(1:,nRstart:,1)
+      us_Rloc(1:,nRstart:)   => fields_container_RLoc(1:,nRstart:,2)
+      up_Rloc(1:,nRstart:)   => fields_container_RLoc(1:,nRstart:,3)
+      om_Rloc(1:,nRstart:)   => fields_container_RLoc(1:,nRstart:,4)
 
       temp_Rloc(:,:) =zero
       us_Rloc(:,:)   =zero
@@ -81,10 +87,10 @@ contains
 !----------------------------------------------------------------------------
    subroutine finalize_fields
 
-      deallocate( us_Rloc, up_Rloc, us_Mloc, up_Mloc, work_Mloc )
-      deallocate( om_Rloc, om_Mloc, dom_Mloc )
+      deallocate( fields_container_Rloc, fields_container_Mloc )
+      deallocate( work_Mloc, dom_Mloc )
       if ( .not. l_cheb_coll ) deallocate( psi_hat_Mloc, temp_hat_Mloc )
-      deallocate( temp_Mloc, dtemp_Mloc, psi_Mloc, temp_Rloc )
+      deallocate( dtemp_Mloc, psi_Mloc )
 
    end subroutine finalize_fields
 !----------------------------------------------------------------------------

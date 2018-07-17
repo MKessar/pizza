@@ -13,13 +13,15 @@ module fieldsLast
 
    private
 
-   complex(cp), public, allocatable :: dVsT_Mloc(:,:)
-   complex(cp), public, allocatable :: dVsOm_Mloc(:,:)
-   complex(cp), public, allocatable :: buo_Mloc(:,:)
-   complex(cp), public, allocatable :: dpsidt_Rloc(:,:)
-   complex(cp), public, allocatable :: dtempdt_Rloc(:,:)
-   complex(cp), public, allocatable :: dVsT_Rloc(:,:)
-   complex(cp), public, allocatable :: dVsOm_Rloc(:,:)
+   complex(cp), allocatable, target, public :: dt_fields_container_Rloc(:,:,:)
+   complex(cp), allocatable, target, public :: dt_fields_container_Mloc(:,:,:)
+   complex(cp), pointer, public :: dVsT_Mloc(:,:)
+   complex(cp), pointer, public :: dVsOm_Mloc(:,:)
+   complex(cp), allocatable, public :: buo_Mloc(:,:)
+   complex(cp), allocatable, public :: dpsidt_Rloc(:,:)
+   complex(cp), allocatable, public :: dtempdt_Rloc(:,:)
+   complex(cp), pointer, public  :: dVsT_Rloc(:,:)
+   complex(cp), pointer, public  :: dVsOm_Rloc(:,:)
    type(type_tarray), public :: dpsidt
    type(type_tarray), public :: dTdt
 
@@ -46,9 +48,10 @@ contains
       call dTdt%initialize(nMstart, nMstop, n_r_max, norder_imp, norder_exp, &
            &               norder_imp_lin)
 
+      allocate( dt_fields_container_Mloc(nMstart:nMstop,n_r_max,2) )
+      dVsT_Mloc(nMstart:,1:)     => dt_fields_container_Mloc(nMstart:,1:,1)
+      dVsOm_Mloc(nMstart:,1:)    => dt_fields_container_Mloc(nMstart:,1:,2)
       allocate( buo_Mloc(nMStart:nMstop,n_r_max) )
-      allocate( dVsT_Mloc(nMStart:nMstop,n_r_max) )
-      allocate( dVsOm_Mloc(nMStart:nMstop,n_r_max) )
       bytes_allocated = bytes_allocated + 3*(nMstop-nMStart+1)*n_r_max*&
       &                 SIZEOF_DEF_COMPLEX
 
@@ -56,10 +59,11 @@ contains
       dVsT_Mloc(:,:) =zero
       dVsOm_Mloc(:,:)=zero
 
-      allocate( dpsidt_Rloc(n_m_max,nRstart:nRstop) )
-      allocate( dtempdt_Rloc(n_m_max,nRstart:nRstop) )
-      allocate( dVsT_Rloc(n_m_max,nRstart:nRstop) )
-      allocate( dVsOm_Rloc(n_m_max,nRstart:nRstop) )
+      allocate( dtempdt_Rloc(n_m_max, nRstart:nRstop) )
+      allocate( dpsidt_Rloc(n_m_max, nRstart:nRstop) )
+      allocate( dt_fields_container_Rloc(n_m_max,nRstart:nRstop,2) )
+      dVsT_Rloc(1:,nRstart:)    => dt_fields_container_Rloc(1:,nRstart:,1)
+      dVsOm_Rloc(1:,nRstart:)   => dt_fields_container_Rloc(1:,nRstart:,2)
       bytes_allocated = bytes_allocated + 4*(nRstop-nRStart+1)*n_m_max* &
       &                 SIZEOF_DEF_COMPLEX
 
@@ -74,9 +78,10 @@ contains
 
       call dTdt%finalize()
       call dpsidt%finalize()
-      deallocate( dVsOm_Rloc, dVsOm_Mloc, buo_Mloc )
-      deallocate( dVsT_Rloc, dVsT_Mloc )
-      deallocate( dpsidt_Rloc, dtempdt_Rloc )
+      deallocate( dtempdt_Rloc, dpsidt_Rloc )
+      deallocate( dt_fields_container_Mloc )
+      deallocate( dt_fields_container_Rloc )
+      deallocate( buo_Mloc )
 
    end subroutine finalize_fieldsLast
 !-------------------------------------------------------------------------------
