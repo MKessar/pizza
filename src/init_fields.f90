@@ -25,6 +25,7 @@ module init_fields
    use fields
    use fieldsLast
    use precision_mod
+   use output_frames, only: write_snapshot_mloc
 
    implicit none
 
@@ -98,11 +99,20 @@ contains
       !-- Initialize the weights of the time scheme
       call tscheme%set_weights(lMat)
 
-      if ( init_t /= 0 .and. l_heat ) call initProp(temp_Mloc, init_t, amp_t)
-
+      if ( init_t /= 0 .and. l_heat ) then 
+         call initProp(temp_Mloc, init_t, amp_t)
+         call write_snapshot_mloc("frame_temp_0.test", 0.0_cp, temp_Mloc)
+         
+      endif
+      
       if ( init_xi /= 0 .and. l_chem ) call initProp(xi_Mloc, init_xi, amp_xi)
 
-      if ( init_u /= 0 ) call initU(us_Mloc, up_Mloc)
+      if ( init_u /= 0 ) then
+                    call initU(us_Mloc, up_Mloc)
+      call write_snapshot_mloc("frame_us_0.test", 0.0_cp, us_Mloc)
+      call write_snapshot_mloc("frame_up_0.test", 0.0_cp, up_Mloc)
+      
+      end if 
 
       !-- Reconstruct missing fields, dtemp_Mloc, om_Mloc
       if ( l_heat ) call get_dr(temp_Mloc, dtemp_Mloc, nMstart, nMstop, &
@@ -117,6 +127,7 @@ contains
             &                     or1(n_r)*ci*real(m,cp)*us_Mloc(n_m,n_r)
          end do
       end do
+      call write_snapshot_mloc("frame_om_0.test", 0.0_cp, om_Mloc)
 
       !-- When not using Collocation also store temp_hat and psi_hat
       !-- This saves 2 DCTs per iteration
@@ -269,10 +280,12 @@ contains
       complex(cp), intent(inout) :: up_Mloc(nMstart:nMstop, n_r_max)
 
       !-- Local variables
-      integer :: m_pertu, n_r, idx, m, n_m
+      integer :: m_pertu, n_r, idx, m, n_m,n_phi
       real(cp) :: c_r
       real(cp) :: u1(n_r_max)
-
+      real(cp) :: phi, phi0
+      real(cp) :: phi_func(n_phi_max)
+      complex(cp) :: dpsi_Mloc(nMstart:nMstop,n_r_max)
 
       !-- Radial dependence of perturbation in t1:
       do n_r=1,n_r_max
@@ -310,7 +323,34 @@ contains
                om_Mloc(n_m,n_r)=-ci*m*or1(n_r)*us_Mloc(n_m,n_r)
             end do
          end do
+         
+      elseif (init_u < 0 ) then
+         
+         
+         phi0 = pi/minc
+         do n_r=nRstart,nRstop
+            do n_phi=1,n_phi_max
+               phi = (n_phi-1)*two*pi/minc/(n_phi_max)
+               phi_func(n_phi)=amp_u*(((r(n_r)-r_icb)*(r(n_r)-r_cmb))**2.0_cp)*cos(3.0_cp*phi)
+            end do
 
+            !-- temp_Rloc is used as a work r-distributed array here
+            call fft(phi_func, temp_Rloc(:,n_r))
+         end do
+
+         !-- MPI transpose is needed here
+         call transp_r2m(r2m_fields, temp_Rloc, work_Mloc)
+         call get_dr(work_Mloc, dpsi_Mloc, nMstart, nMstop, n_r_max, rscheme)
+
+         do n_r=1,n_r_max
+            do n_m=nMstart,nMstop
+               m=idx2m(n_m)
+               us_Mloc(n_m,n_r)=us_Mloc(n_m,n_r)+ci*m*or1(n_r)*work_Mloc(n_m,n_r)
+               up_Mloc(n_m,n_r)=up_Mloc(n_m,n_r)-dpsi_Mloc(n_m,n_r)-beta(n_r)*work_Mloc(n_m,n_r)
+            end do
+         end do
+
+         !--stop
       else ! initialize an axisymmetric vphi
 
          idx = m2idx(0)
