@@ -32,6 +32,7 @@ module namelists
    real(cp), public :: xicond_fac    ! Rescaling of the conducting composition
    real(cp), public :: beta_shift    ! Shift the upper bound of \beta
    logical,  public :: l_non_rot     ! Switch to do a non-rotatig annulus
+   logical,  public :: l_vort            ! Do we solve the vorticity equation
    logical,  public :: l_temp_3D     ! 2D or 3D temperature background
    logical,  public :: l_xi_3D       ! 2D or 3D composition background
    logical,  public :: l_ek_pump     ! With or without Ekman pumping
@@ -128,11 +129,11 @@ contains
       !-- Namelists:
 
       namelist/grid/n_r_max,n_cheb_max,m_max,minc
-      namelist/control/tag,n_time_steps,alpha,l_newmap,map_function,&
-      &                alph1,alph2,dtMax,courfac,tEND,runHours,     &
-      &                runMinutes,runSeconds,l_non_rot,dt_fac,      &
-      &                n_fft_optim_lev,time_scheme,cheb_method,     &
-      &                l_rerror_fix, rerror_fac, time_scale,        &
+      namelist/control/tag,n_time_steps,alpha,l_newmap,map_function,   &
+      &                alph1,alph2,dtMax,courfac,tEND,runHours,        &
+      &                runMinutes,runSeconds,l_non_rot, l_vort,dt_fac, &
+      &                n_fft_optim_lev,time_scheme,cheb_method,        &
+      &                l_rerror_fix, rerror_fac, time_scale,           &
       &                matrix_solve,corio_term,buo_term,bc_method
       namelist/hdif/hdif_temp,hdif_vel,hdif_exp,hdif_m,hdif_comp
       namelist/phys_param/ra,ek,pr,raxi,sc,radratio,g0,g1,g2,      &
@@ -484,6 +485,7 @@ contains
       l_temp_advz      =.false.
       l_temp_3D        =.false.
       l_xi_3D          =.false.
+      l_vort           =.true.
       ra               =1.0e5_cp
       pr               =one
       ek               =1.0e-3_cp
