@@ -331,7 +331,7 @@ contains
          do n_r=nRstart,nRstop
             do n_phi=1,n_phi_max
                phi = (n_phi-1)*two*pi/minc/(n_phi_max)
-               phi_func(n_phi)=amp_u*(((r(n_r)-r_icb)*(r(n_r)-r_cmb))**2.0_cp)*cos(3.0_cp*phi)
+               phi_func(n_phi)=amp_u*(((r(n_r)-r_icb)*(r(n_r)-r_cmb))**2.0_cp)*cos((3.0_cp*phi)+pi/2.0_cp)
             end do
 
             !-- temp_Rloc is used as a work r-distributed array here
