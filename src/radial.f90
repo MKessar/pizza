@@ -8,7 +8,7 @@ module radial_functions
    use radial_der, only: get_dr
    use constants, only: one, two, three, pi, half, third
    use namelists, only: tag, alph1, alph2, l_newmap, radratio, g0, g1, g2, &
-       &                l_non_rot, ek, l_ek_pump, l_temp_3D, tcond_fac,    &
+       &                l_non_rot,l_no_background, ek, l_ek_pump, l_temp_3D, tcond_fac,    &
        &                r_cmb, r_icb, l_cheb_coll, beta_shift, xicond_fac, &
        &                ktopt, kbott, t_bot, t_top, l_heat, l_chem, xi_bot,&
        &                xi_top, l_xi_3D, ktopxi, kbotxi
@@ -230,6 +230,15 @@ contains
       if ( rank == 0 ) write(6,*) '! Bot Flux', f_bot
 
       !-- Conductive Temperature profile 2D and 3D projected onto QG
+      
+      if (l_no_background) then
+      
+               tcond    = 0.0_cp
+               dtcond   = 0.0_cp
+!                tcond(1) = f_top
+
+
+      else 
       if ( l_3D ) then
          !3D-tcond profiles -- Warning! In 3D, tcond(r_cmb) induces division by 0 (in h)
          tcond(1) = f_top!0.0_cp
@@ -284,7 +293,8 @@ contains
             &                     (two*r_cmb**2*log(r(:)) - r(:)**2))
             dtcond(:)= cond_fac*(f_top*r_cmb*or1(:) + epsc0*(r_cmb**2*or1(:) - r(:)))
          endif
-      end if
+      endif
+      endif
       !call logWrite('! Sources introduced to balance surface heat flux!')
       if (rank == 0) write(6,*) '! Warning: Sources introduced to balance surface heat flux'
       if (rank == 0) write(6,'(''!      epsc0*pr='',ES16.6)') epsc0
