@@ -253,6 +253,7 @@ contains
       real(cp) :: us2_r(n_r_max), up2_r(n_r_max), enstrophy_r(n_r_max)
       real(cp) :: us2_m_Mloc(nMstart:nMstop), up2_m_Mloc(nMstart:nMstop)
       real(cp) :: enst_m_Mloc(nMstart:nMstop)
+      real(cp) :: Temp2_m_Mloc(nMstart:nMstop)
       real(cp) :: flux_r(n_r_max)
 
       timeAvg_rad  = timeAvg_rad  + tscheme%dt(1)
@@ -268,13 +269,13 @@ contains
       !-- Calculate spectra
       if ( l_log .or. spec%l_calc ) then
          call spec%calculate_spectra(timeAvg_spec, l_stop_time, us_Mloc, &
-              &                      up_Mloc, om_Mloc, us2_m_Mloc,       &
-              &                      up2_m_Mloc, enst_m_Mloc)
+              &                      up_Mloc, om_Mloc, temp_Mloc, us2_m_Mloc,       &
+              &                      up2_m_Mloc, enst_m_Mloc,Temp2_m_Mloc)
       end if
 
       !-- Write spectra
       if ( spec%l_calc ) then
-         call spec%write_spectra(us2_m_Mloc, up2_m_Mloc, enst_m_Mloc)
+         call spec%write_spectra(us2_m_Mloc, up2_m_Mloc, enst_m_Mloc,Temp2_m_Mloc)
       end if
 
       if ( l_frame ) then
