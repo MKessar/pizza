@@ -26,9 +26,11 @@ module spectra
       type(mean_sd_2D_type) :: us2
       type(mean_sd_2D_type) :: up2
       type(mean_sd_2D_type) :: enst
+      type(mean_sd_2D_type) :: Temp2
       type(mean_sd_type) :: us2M
       type(mean_sd_type) :: up2M
       type(mean_sd_type) :: enstM
+      type(mean_sd_type) :: Temp2M
       integer :: n_calls
       integer :: ispec_counter
       real(cp) :: dt
@@ -55,11 +57,13 @@ contains
          call this%us2%initialize(nMstart,nMstop,n_r_max,l_2D_SD)
          call this%up2%initialize(nMstart,nMstop,n_r_max,l_2D_SD)
          call this%enst%initialize(nMstart,nMstop,n_r_max,l_2D_SD)
+         call this%Temp2%initialize(nMstart,nMstop,n_r_max,l_2D_SD)
       end if
 
       call this%us2M%initialize(nMstart,nMstop)
       call this%up2M%initialize(nMstart,nMstop)
       call this%enstM%initialize(nMstart,nMstop)
+      call this%Temp2M%initialize(nMstart,nMstop)
 
       this%ispec_counter = 1
       this%n_calls = 0
@@ -87,7 +91,7 @@ contains
    end subroutine finalize
 !------------------------------------------------------------------------------
    subroutine calculate_spectra(this, time, l_stop_time, us_Mloc, up_Mloc, &
-              &                 om_Mloc, us2_m, up2_m, enst_m)
+              &                 om_Mloc,temp_Mloc, us2_m, up2_m, enst_m,temp2_m)
 
       class(spectra_type) :: this
 
@@ -97,14 +101,16 @@ contains
       complex(cp), intent(in) :: us_Mloc(nMstart:nMstop,n_r_max)
       complex(cp), intent(in) :: up_Mloc(nMstart:nMstop,n_r_max)
       complex(cp), intent(in) :: om_Mloc(nMstart:nMstop,n_r_max)
+      complex(cp), intent(in) :: temp_Mloc(nMstart:nMstop,n_r_max)
 
       !-- Output variables
       real(cp), intent(out) :: us2_m(nMstart:nMstop)
       real(cp), intent(out) :: up2_m(nMstart:nMstop)
       real(cp), intent(out) :: enst_m(nMstart:nMstop)
+      real(cp), intent(out) :: temp2_m(nMstart:nMstop)
 
       !-- Local variables:
-      real(cp) :: us2R(n_r_max), up2R(n_r_max), enstR(n_r_max)
+      real(cp) :: us2R(n_r_max), up2R(n_r_max), enstR(n_r_max),temp2R(n_r_max)
       real(cp) :: sd
       integer :: n_r, n_m, m
 
@@ -116,12 +122,16 @@ contains
       do n_m=nMstart,nMstop
          m = idx2m(n_m)
          do n_r=1,n_r_max
-            us2R(n_r) =cc2real(us_Mloc(n_m,n_r),m)
-            up2R(n_r) =cc2real(up_Mloc(n_m,n_r),m)
-            enstR(n_r)=cc2real(om_Mloc(n_m,n_r),m)
-            us2R(n_r) =pi*us2R(n_r)*r(n_r)*height(n_r)
-            up2R(n_r) =pi*up2R(n_r)*r(n_r)*height(n_r)
-            enstR(n_r)=pi*enstR(n_r)*r(n_r)*height(n_r)
+            us2R(n_r)   = cc2real(us_Mloc(n_m,n_r),m)
+            up2R(n_r)   = cc2real(up_Mloc(n_m,n_r),m)
+            enstR(n_r)  = cc2real(om_Mloc(n_m,n_r),m)
+            temp2R(n_r) = cc2real(temp_Mloc(n_m,n_r),m)
+            
+            us2R(n_r)   = pi*us2R(n_r)*r(n_r)*height(n_r)
+            up2R(n_r)   = pi*up2R(n_r)*r(n_r)*height(n_r)
+            enstR(n_r)  = pi*enstR(n_r)*r(n_r)*height(n_r)
+            temp2R(n_r) = pi*temp2R(n_r)*r(n_r)*height(n_r)
+            
             if ( l_2D_spectra ) then
                if ( this%us2%l_SD ) then
                   call getMSD2(this%us2%mean(n_m,n_r), this%us2%SD(n_m,n_r), &
@@ -130,12 +140,16 @@ contains
                        &       up2R(n_r),this%n_calls, this%dt, time)
                   call getMSD2(this%enst%mean(n_m,n_r), this%enst%SD(n_m,n_r), &
                        &       enstR(n_r), this%n_calls, this%dt, time)
+                  call getMSD2(this%Temp2%mean(n_m,n_r), this%Temp2%SD(n_m,n_r), &
+                       &       temp2R(n_r), this%n_calls, this%dt, time)
                else
                   call getMSD2(this%us2%mean(n_m,n_r), sd, us2R(n_r),   &
                        &       this%n_calls, this%dt, time)
                   call getMSD2(this%up2%mean(n_m,n_r), sd, up2R(n_r),   &
                        &       this%n_calls, this%dt, time)
                   call getMSD2(this%enst%mean(n_m,n_r), sd, enstR(n_r), &
+                       &       this%n_calls, this%dt, time)
+                  call getMSD2(this%Temp2%mean(n_m,n_r), sd, temp2R(n_r), &
                        &       this%n_calls, this%dt, time)
                end if
             end if
@@ -144,6 +158,7 @@ contains
          us2_m(n_m) =rInt_R(us2R, r, rscheme)
          up2_m(n_m) =rInt_R(up2R, r, rscheme)
          enst_m(n_m)=rInt_R(enstR, r, rscheme)
+         temp2_m(n_m)=rInt_R(temp2R, r, rscheme)
 
          !-- Mean and SD of m-spectra
          call getMSD2(this%us2M%mean(n_m), this%us2M%SD(n_m), us2_m(n_m), &
@@ -151,6 +166,8 @@ contains
          call getMSD2(this%up2M%mean(n_m), this%up2M%SD(n_m), up2_m(n_m), &
               &       this%n_calls, this%dt, time)
          call getMSD2(this%enstM%mean(n_m), this%enstM%SD(n_m), enst_m(n_m), &
+              &       this%n_calls, this%dt, time)
+         call getMSD2(this%temp2M%mean(n_m), this%temp2M%SD(n_m), temp2_m(n_m), &
               &       this%n_calls, this%dt, time)
       end do
       this%timeLast = time
@@ -170,6 +187,7 @@ contains
       real(cp) :: us2_mean_global(n_m_max), us2_SD_global(n_m_max)
       real(cp) :: up2_mean_global(n_m_max), up2_SD_global(n_m_max)
       real(cp) :: enst_mean_global(n_m_max), enst_SD_global(n_m_max)
+      real(cp) :: Temp2_mean_global(n_m_max), Temp2_SD_global(n_m_max)
       integer :: file_handle, n_m, m, n_p, n_r
       integer :: displs(0:n_procs-1), recvcounts(0:n_procs-1)
 
@@ -200,8 +218,8 @@ contains
       call MPI_GatherV(this%enstM%mean, nm_per_rank, MPI_DEF_REAL, &
            &           enst_mean_global, recvcounts, displs,       &
            &           MPI_DEF_REAL, 0, MPI_COMM_WORLD, ierr)
-      call MPI_GatherV(this%enstM%SD, nm_per_rank, MPI_DEF_REAL,   &
-           &           enst_SD_global, recvcounts, displs,         &
+      call MPI_GatherV(this%Temp2M%SD, nm_per_rank, MPI_DEF_REAL,   &
+           &           Temp2_mean_global, recvcounts, displs,         &
            &           MPI_DEF_REAL, 0, MPI_COMM_WORLD, ierr)
 
       !-- Only rank==0 writes the spec_avg.TAG file
@@ -212,12 +230,23 @@ contains
             us2_SD_global(n_m) =sqrt(us2_SD_global(n_m)/this%timeLast)
             up2_SD_global(n_m) =sqrt(up2_SD_global(n_m)/this%timeLast)
             enst_SD_global(n_m)=sqrt(enst_SD_global(n_m)/this%timeLast)
+            Temp2_SD_global(n_m)=sqrt(Temp2_SD_global(n_m)/this%timeLast)
             write(file_handle, '(I5, 6es16.8)') m,                                &
             &     round_off(us2_mean_global(n_m)), round_off(us2_SD_global(n_m)), &
             &     round_off(up2_mean_global(n_m)), round_off(up2_SD_global(n_m)), &
             &     round_off(enst_mean_global(n_m)), round_off(enst_SD_global(n_m))
          end do
          close(file_handle)
+         
+         open(newunit=file_handle, file='spec_avg_temp.'//tag)
+         do n_m=1,n_m_max
+            m = idx2m(n_m)
+            Temp2_SD_global(n_m)=sqrt(Temp2_SD_global(n_m)/this%timeLast)
+            write(file_handle, '(I5, 6es16.8)') m,                                 &
+            &     round_off(Temp2_mean_global(n_m)), round_off(Temp2_SD_global(n_m) )
+         end do
+         close(file_handle)
+         
       end if
 
       !-------------------
@@ -230,6 +259,7 @@ contains
                   this%us2%SD(n_m,n_r) =sqrt(this%us2%SD(n_m,n_r)/this%timeLast)
                   this%up2%SD(n_m,n_r) =sqrt(this%up2%SD(n_m,n_r)/this%timeLast)
                   this%enst%SD(n_m,n_r)=sqrt(this%enst%SD(n_m,n_r)/this%timeLast)
+                  this%Temp2%SD(n_m,n_r)=sqrt(this%Temp2%SD(n_m,n_r)/this%timeLast)
                end do
             end do
          end if
@@ -239,7 +269,7 @@ contains
 
    end subroutine write_spectra_avg
 !----------------------------------------------------------------------
-   subroutine write_spectra(this, us2_m, up2_m, enst_m)
+   subroutine write_spectra(this, us2_m, up2_m, enst_m,Temp2_m)
       !
       ! This subroutine writes one snapshot spectrum
       !
@@ -250,10 +280,11 @@ contains
       real(cp), intent(in) :: us2_m(nMstart:nMstop)
       real(cp), intent(in) :: up2_m(nMstart:nMstop)
       real(cp), intent(in) :: enst_m(nMstart:nMstop)
+      real(cp), intent(in) :: Temp2_m(nMstart:nMstop)
 
       !-- Local variables
       real(cp) :: us2_m_global(n_m_max), up2_m_global(n_m_max)
-      real(cp) :: enst_m_global(n_m_max)
+      real(cp) :: enst_m_global(n_m_max),Temp2_m_global(n_m_max)
       integer :: n_p, m, n_m
       integer :: displs(0:n_procs-1), recvcounts(0:n_procs-1)
       character(len=144) :: spec_name
@@ -275,6 +306,9 @@ contains
       call MPI_GatherV(enst_m, nm_per_rank, MPI_DEF_REAL,       &
            &           enst_m_global, recvcounts, displs,       &
            &           MPI_DEF_REAL, 0, MPI_COMM_WORLD, ierr)
+      call MPI_GatherV(Temp2_m, nm_per_rank, MPI_DEF_REAL,       &
+           &           Temp2_m_global, recvcounts, displs,       &
+           &           MPI_DEF_REAL, 0, MPI_COMM_WORLD, ierr)
 
       if ( rank == 0 ) then
          write(spec_name, '(A,I0,A,A)') 'spec_',this%ispec_counter,'.',tag
@@ -285,7 +319,8 @@ contains
             write(file_handle, '(I5, 3es16.8)') m,       &
             &              round_off(us2_m_global(n_m)), &
             &              round_off(up2_m_global(n_m)), &
-            &              round_off(enst_m_global(n_m))
+            &              round_off(enst_m_global(n_m)), &
+            &              round_off(Temp2_m_global(n_m))
          end do
          close(file_handle)
 
