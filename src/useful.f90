@@ -28,7 +28,7 @@ contains
 
       code = 32
 
-      if ( rank == 0 ) then
+      if ( Key_Pizza == 0 ) then
          write(*,*)
          write(*,*)
          write(*,*)
@@ -39,7 +39,7 @@ contains
          write(*,*)
       end if
 
-      call MPI_Abort(MPI_COMM_WORLD, code, ierr)
+      call MPI_Abort(Comm_Pizza, code, ierr)
 
    end subroutine abortRun
 !----------------------------------------------------------------------------
@@ -49,7 +49,7 @@ contains
       character(len=*), intent(in) :: message
       integer,          intent(in) :: n_log_file
 
-       if ( rank == 0 ) then
+       if ( Key_Pizza == 0 ) then
           write(n_log_file,*) trim(message)
           write(*,*)          trim(message)
        end if

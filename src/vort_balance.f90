@@ -352,60 +352,60 @@ contains
       end do
       call MPI_GatherV(this%buoM%mean, nm_per_rank, MPI_DEF_REAL,   &
            &           buoM_global, recvcounts, displs,             &
-           &           MPI_DEF_REAL, 0, MPI_COMM_WORLD, ierr)
+           &           MPI_DEF_REAL, 0, Comm_Pizza, ierr)
       call MPI_GatherV(this%buoM%SD, nm_per_rank, MPI_DEF_REAL,     &
            &           buoSD_global, recvcounts, displs,            &
-           &           MPI_DEF_REAL, 0, MPI_COMM_WORLD, ierr)
+           &           MPI_DEF_REAL, 0, Comm_Pizza, ierr)
       call MPI_GatherV(this%corM%mean, nm_per_rank, MPI_DEF_REAL,   &
            &           corM_global, recvcounts, displs,             &
-           &           MPI_DEF_REAL, 0, MPI_COMM_WORLD, ierr)
+           &           MPI_DEF_REAL, 0, Comm_Pizza, ierr)
       call MPI_GatherV(this%corM%SD, nm_per_rank, MPI_DEF_REAL,     &
            &           corSD_global, recvcounts, displs,            &
-           &           MPI_DEF_REAL, 0, MPI_COMM_WORLD, ierr)
+           &           MPI_DEF_REAL, 0, Comm_Pizza, ierr)
       call MPI_GatherV(this%advM%mean, nm_per_rank, MPI_DEF_REAL,   &
            &           advM_global, recvcounts, displs,             &
-           &           MPI_DEF_REAL, 0, MPI_COMM_WORLD, ierr)
+           &           MPI_DEF_REAL, 0, Comm_Pizza, ierr)
       call MPI_GatherV(this%advM%SD, nm_per_rank, MPI_DEF_REAL,     &
            &           advSD_global, recvcounts, displs,            &
-           &           MPI_DEF_REAL, 0, MPI_COMM_WORLD, ierr)
+           &           MPI_DEF_REAL, 0, Comm_Pizza, ierr)
       call MPI_GatherV(this%dwdtM%mean, nm_per_rank, MPI_DEF_REAL,  &
            &           dwdtM_global, recvcounts, displs,            &
-           &           MPI_DEF_REAL, 0, MPI_COMM_WORLD, ierr)
+           &           MPI_DEF_REAL, 0, Comm_Pizza, ierr)
       call MPI_GatherV(this%dwdtM%SD, nm_per_rank, MPI_DEF_REAL,    &
            &           dwdtSD_global, recvcounts, displs,           &
-           &           MPI_DEF_REAL, 0, MPI_COMM_WORLD, ierr)
+           &           MPI_DEF_REAL, 0, Comm_Pizza, ierr)
       call MPI_GatherV(this%viscM%mean, nm_per_rank, MPI_DEF_REAL,  &
            &           viscM_global, recvcounts, displs,            &
-           &           MPI_DEF_REAL, 0, MPI_COMM_WORLD, ierr)
+           &           MPI_DEF_REAL, 0, Comm_Pizza, ierr)
       call MPI_GatherV(this%viscM%SD, nm_per_rank, MPI_DEF_REAL,    &
            &           viscSD_global, recvcounts, displs,           &
-           &           MPI_DEF_REAL, 0, MPI_COMM_WORLD, ierr)
+           &           MPI_DEF_REAL, 0, Comm_Pizza, ierr)
       call MPI_GatherV(this%pumpM%mean, nm_per_rank, MPI_DEF_REAL,  &
            &           pumpM_global, recvcounts, displs,            &
-           &           MPI_DEF_REAL, 0, MPI_COMM_WORLD, ierr)
+           &           MPI_DEF_REAL, 0, Comm_Pizza, ierr)
       call MPI_GatherV(this%pumpM%SD, nm_per_rank, MPI_DEF_REAL,    &
            &           pumpSD_global, recvcounts, displs,           &
-           &           MPI_DEF_REAL, 0, MPI_COMM_WORLD, ierr)
+           &           MPI_DEF_REAL, 0, Comm_Pizza, ierr)
       call MPI_GatherV(this%thwindM%mean, nm_per_rank, MPI_DEF_REAL,&
            &           thwindM_global, recvcounts, displs,          &
-           &           MPI_DEF_REAL, 0, MPI_COMM_WORLD, ierr)
+           &           MPI_DEF_REAL, 0, Comm_Pizza, ierr)
       call MPI_GatherV(this%thwindM%SD, nm_per_rank, MPI_DEF_REAL,  &
            &           thwindSD_global, recvcounts, displs,         &
-           &           MPI_DEF_REAL, 0, MPI_COMM_WORLD, ierr)
+           &           MPI_DEF_REAL, 0, Comm_Pizza, ierr)
       call MPI_GatherV(this%ciaM%mean, nm_per_rank, MPI_DEF_REAL,   &
            &           ciaM_global, recvcounts, displs,             &
-           &           MPI_DEF_REAL, 0, MPI_COMM_WORLD, ierr)
+           &           MPI_DEF_REAL, 0, Comm_Pizza, ierr)
       call MPI_GatherV(this%ciaM%SD, nm_per_rank, MPI_DEF_REAL,     &
            &           ciaSD_global, recvcounts, displs,            &
-           &           MPI_DEF_REAL, 0, MPI_COMM_WORLD, ierr)
+           &           MPI_DEF_REAL, 0, Comm_Pizza, ierr)
       call MPI_GatherV(this%inerM%mean, nm_per_rank, MPI_DEF_REAL,  &
            &           inerM_global, recvcounts, displs,            &
-           &           MPI_DEF_REAL, 0, MPI_COMM_WORLD, ierr)
+           &           MPI_DEF_REAL, 0, Comm_Pizza, ierr)
       call MPI_GatherV(this%inerM%SD, nm_per_rank, MPI_DEF_REAL,    &
            &           inerSD_global, recvcounts, displs,           &
-           &           MPI_DEF_REAL, 0, MPI_COMM_WORLD, ierr)
+           &           MPI_DEF_REAL, 0, Comm_Pizza, ierr)
 
-      if ( rank == 0 ) then
+      if ( Key_Pizza == 0 ) then
          open(newunit=file_handle, file='vort_terms_avg.'//tag)
          do n_m=1,n_m_max
             m = idx2m(n_m)
@@ -482,11 +482,11 @@ contains
       call MPI_Info_set(info,"cb_buffer_size","4194304", ierr)
 
       !-- Open file
-      call MPI_File_Open(MPI_COMM_WORLD, forces_file, ior(MPI_MODE_WRONLY, &
+      call MPI_File_Open(Comm_Pizza, forces_file, ior(MPI_MODE_WRONLY, &
            &             MPI_MODE_CREATE), info, fh, ierr)
 
       !-- Only rank=0 writes the header of the file
-      if ( rank == 0 ) then
+      if ( Key_Pizza == 0 ) then
          call MPI_File_Write(fh, version, 1, MPI_INTEGER, istat, ierr)
          call MPI_File_Write(fh, ra, 1, MPI_DEF_REAL, istat, ierr)
          call MPI_File_Write(fh, pr, 1, MPI_DEF_REAL, istat, ierr)
