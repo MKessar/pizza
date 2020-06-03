@@ -30,7 +30,7 @@ contains
       !-- Set r-dependent arrays
       call radial()
 
-      if ( ( l_newmap ) .and. (rank == 0) ) then
+      if ( ( l_newmap ) .and. (Key_Pizza == 0) ) then
          file_name='rNM.'//tag
          open(newunit=file_handle, file=file_name, status='unknown')
          do n_r=1,n_r_max
@@ -50,7 +50,7 @@ contains
       surf   =pi*(r_cmb**2-r_icb**2)
 
       !-- Write some informations
-      if ( rank == 0 ) then
+      if ( Key_Pizza == 0 ) then
          call write_info(6)
          call write_info(n_log_file)
       end if

@@ -37,10 +37,10 @@ contains
       &             5*SIZEOF_INTEGER+8+n_r_max*SIZEOF_DEF_REAL+8+n_r_max*  &
       &             SIZEOF_DEF_REAL+8+n_m_max*SIZEOF_INTEGER
 
-      call MPI_File_Open(MPI_COMM_WORLD, filename, ior(MPI_MODE_WRONLY, &
+      call MPI_File_Open(Comm_Pizza, filename, ior(MPI_MODE_WRONLY, &
            &             MPI_MODE_CREATE), MPI_INFO_NULL, fh, ierr)
 
-      if ( rank == 0 ) then
+      if ( Key_Pizza == 0 ) then
          disp = 0
       else
          disp = 8+header_size
@@ -49,7 +49,7 @@ contains
            &                 MPI_INFO_NULL, ierr)
 
       !-- Only rank=0 writes the header of the file
-      if ( rank == 0 ) then
+      if ( Key_Pizza == 0 ) then
          call MPI_File_Write(fh, SIZEOF_INTEGER, 1, MPI_INTEGER, istat, ierr)
          call MPI_File_Write(fh, version, 1, MPI_INTEGER, istat, ierr)
          call MPI_File_Write(fh, SIZEOF_INTEGER, 1, MPI_INTEGER, istat, ierr)
@@ -114,7 +114,7 @@ contains
       disp = 8+header_size+4+n_m_max*n_r_max*SIZEOF_DEF_COMPLEX
       call MPI_File_Set_View(fh, disp, MPI_BYTE, MPI_BYTE,"native", &
            &                  MPI_INFO_NULL, ierr)
-      if ( rank == n_procs-1 ) then
+      if ( Key_Pizza == NProc_Pizza-1 ) then
          call MPI_File_Write(fh, n_m_max*n_r_max*SIZEOF_DEF_COMPLEX,1, &
               &              MPI_INTEGER, istat, ierr)
       end if
@@ -157,11 +157,11 @@ contains
       !-- Set the buffer size to 4M
       call MPI_Info_set(info,"cb_buffer_size","4194304", ierr)
 
-      call MPI_File_Open(MPI_COMM_WORLD, filename, ior(MPI_MODE_WRONLY, &
+      call MPI_File_Open(Comm_Pizza, filename, ior(MPI_MODE_WRONLY, &
            &             MPI_MODE_CREATE), info, fh, ierr)
 
       !-- Only rank=0 writes the header of the file
-      if ( rank == 0 ) then
+      if ( Key_Pizza == 0 ) then
          call MPI_File_Write(fh, version, 1, MPI_INTEGER, istat, ierr)
          call MPI_File_Write(fh, time, 1, MPI_DEF_REAL, istat, ierr)
          call MPI_File_Write(fh, ra, 1, MPI_DEF_REAL, istat, ierr)

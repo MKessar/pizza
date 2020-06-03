@@ -337,7 +337,7 @@ contains
 
       !----- Stop if time step has become too small:
       if ( dt_new < dt_min ) then
-         if ( rank == 0 ) then
+         if ( Key_Pizza == 0 ) then
             write(*,'(1p,/,A,ES14.4,/,A)')             &
             &    " ! Time step too small, dt=",dt_new, &
             &    " ! I thus stop the run !"
@@ -350,7 +350,7 @@ contains
 
       if ( l_new_dtNext ) then
          !------ Writing info and getting new weights:
-         if ( rank == 0 ) then
+         if ( Key_Pizza == 0 ) then
             write(*,'(1p,/,A,ES18.10,/,A,i9,/,A,ES15.8,/,A,ES15.8)')  &
             &    " ! Changing time step at time=",(time+this%dt(1)),  &
             &    "                 time step no=",n_time_step,        &
@@ -520,7 +520,7 @@ contains
       character(len=8) :: old_scheme
       integer :: old_order
 
-      if (rank == 0 ) write(*,*) '! Crank-Nicolson for this time-step'
+      if (Key_Pizza == 0 ) write(*,*) '! Crank-Nicolson for this time-step'
 
       old_order=this%norder_imp_lin
       this%norder_imp_lin=2
@@ -541,7 +541,7 @@ contains
 
       class(type_multistep) :: this
 
-      if (rank == 0 ) write(*,*) '! 1st order Adams-Bashforth for 1st time step'
+      if (Key_Pizza == 0 ) write(*,*) '! 1st order Adams-Bashforth for 1st time step'
       this%wexp(1)=this%dt(1) ! Instead of one
       this%wexp(2:this%norder_exp)=0.0_cp
 

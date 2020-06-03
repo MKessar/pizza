@@ -38,6 +38,7 @@ program pizza
    use time_schemes, only: type_tscheme
    use useful, only: formatTime
    use tests, only: solve_laplacian, test_radial_der, solve_biharmo, test_i4
+   use namelists, only: NProc_time
 
    implicit none
 
@@ -49,13 +50,14 @@ program pizza
    integer :: n, n_out
    character(len=72) :: date
 
+   
    !-- Initialize MPI
    call initialize_mpi()
-
+   
    run_start = MPI_Wtime()
-
+   
    !--
-   if ( rank == 0 ) then
+   if ( Key_Pizza == 0 ) then
       write(*,*)
       write(*,*) '!--- Program pizza  ---!'
       call date_and_time(values=values)
@@ -65,21 +67,19 @@ program pizza
 
    end if
 
+   
    !-- Read input parameters
    call read_namelists()
-
    !-- Select the kind of time-integrator (multi-step or implicit R-K):
    call select_tscheme(time_scheme, tscheme)
-
    !-- Init memory counter
    call initialize_memory_counter(tag)
-
    !-- Initialize truncation
    call initialize_truncation()
-
+   !-- Set the time parralel decomposition
+   call mpi_split_time_parallel(NProc_time)
    !-- Set the domain decomposition
    call set_mpi_domains()
-
    !-- Test radial derivatives
    !call test_i4()
    !call solve_laplacian(nMstart, nMstop)
@@ -90,8 +90,11 @@ program pizza
    !-- Open output files
    local_bytes_used = bytes_allocated
    call initialize_outputs()
+
+   
    local_bytes_used = bytes_allocated-local_bytes_used
    call memWrite('I/O', local_bytes_used)
+   
 
    !-- Initialize time scheme
    call tscheme%initialize(time_scheme, courfac)
@@ -99,6 +102,7 @@ program pizza
    !-- Initialize MPI communicators
    call initialize_communications()
 
+   
    local_bytes_used = bytes_allocated
    call initialize_fields()
    call initialize_fieldsLast(nMstart, nMstop, n_m_max, nRstart, nRstop, n_r_max, &
@@ -118,13 +122,13 @@ program pizza
    call memWrite('R loop', local_bytes_used)
    call initialize_mfunctions()
 
-
-   if ( rank == 0 ) then
+   if ( Key_Pizza == 0 ) then
       call write_namelists(6)
       call write_namelists(n_log_file)
       call tscheme%print_info(n_log_file)
    end if
 
+   
    !-- Pre calculations has to be done before matrix initialisation
    call preCalc()
 
@@ -157,7 +161,7 @@ program pizza
    call initialize_courant(time, tscheme%dt(1))
 
    !--- Write starting time to SDTOUT and logfile:
-   if ( rank == 0 ) then
+   if ( Key_Pizza == 0 ) then
       do n=1,2
          if ( n == 1 ) n_out=6
          if ( n == 2 ) n_out=n_log_file
@@ -171,13 +175,15 @@ program pizza
    call MPI_Allreduce(MPI_IN_PLACE,run_init,1,MPI_DEF_REAL,MPI_MAX, &
         &             MPI_COMM_WORLD, ierr)
 
+
+
    !-- Time integration
    call time_loop(time, tscheme, run_init)
 
    run_stop = MPI_Wtime()
 
    !--- Write stop time to SDTOUR and logfile:
-   if ( rank == 0 ) then
+   if ( Key_Pizza == 0 ) then
       do n=1,2
          if ( n == 1 ) n_out=6
          if ( n == 2 )  n_out=n_log_file

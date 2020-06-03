@@ -13,7 +13,7 @@ module init_fields
        &                radratio, r_cmb, r_icb, l_cheb_coll, l_non_rot,    &
        &                l_reset_t, l_chem, l_heat, amp_xi, init_xi
    use outputs, only: n_log_file
-   use parallel_mod, only: rank
+   use parallel_mod!, only: rank
    use blocking, only: nMstart, nMstop, nM_per_rank
    use truncation, only: m_max, n_r_max, minc, m2idx, idx2m, n_phi_max
    use useful, only: logWrite, abortRun, gausslike_compact_center, &
@@ -47,6 +47,7 @@ contains
       real(cp) :: h2
       character(len=76) :: message
 
+   
       if ( l_start_file ) then
          call read_checkpoint(us_Mloc, up_Mloc, temp_Mloc, xi_Mloc, dpsidt, &
               &               dTdt, dxidt, time, tscheme)
@@ -91,16 +92,18 @@ contains
          time=0.0_cp
          tscheme%dt(:)=dtMax
 
-         if (rank == 0) write(message,'(''! Using dtMax time step:'',ES16.6)') dtMax
+         if (Key_Pizza == 0) write(message,'(''! Using dtMax time step:'',ES16.6)') dtMax
          call logWrite(message, n_log_file)
 
       end if
+
 
       !-- Initialize the weights of the time scheme
       call tscheme%set_weights(lMat)
 
       if ( init_t /= 0 .and. l_heat ) then 
          call initProp(temp_Mloc, init_t, amp_t)
+    
          call write_snapshot_mloc("frame_temp_0.test", 0.0_cp, temp_Mloc)
          
       endif
@@ -113,6 +116,8 @@ contains
       call write_snapshot_mloc("frame_up_0.test", 0.0_cp, up_Mloc)
       
       end if 
+
+
 
       !-- Reconstruct missing fields, dtemp_Mloc, om_Mloc
       if ( l_heat ) call get_dr(temp_Mloc, dtemp_Mloc, nMstart, nMstop, &
@@ -128,6 +133,7 @@ contains
          end do
       end do
       call write_snapshot_mloc("frame_om_0.test", 0.0_cp, om_Mloc)
+
 
       !-- When not using Collocation also store temp_hat and psi_hat
       !-- This saves 2 DCTs per iteration

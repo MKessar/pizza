@@ -305,7 +305,7 @@ contains
    end subroutine get_ddcheb_real_1d
 !------------------------------------------------------------------------------
    subroutine get_dr_complex_2d(f,df,nMstart,nMstop,n_r_max,r_scheme,nocopy,  &
-              &                 l_dct_in,l_dct_out)
+              &                 l_dct_in,l_dct_out,multi_level)
       !
       !  Returns first radial derivative df of the input function f.      
       !  Array f(nMstart:nMstop,*) may contain several functions numbered by     
@@ -323,7 +323,8 @@ contains
       logical, optional,   intent(in) :: nocopy
       logical, optional,   intent(in) :: l_dct_in
       logical, optional,   intent(in) :: l_dct_out
-    
+      integer, optional,   intent(in) :: multi_level
+
       !-- Output variables:
       complex(cp), intent(out) :: df(nMstart:nMstop,n_r_max) ! first derivative of f
     
@@ -342,7 +343,13 @@ contains
       else
          l_dct_out_loc=.true.
       end if
-    
+      
+      
+      if ( present(multi_level) ) then
+         deallocate(work)
+         allocate( work(nMstart:nMstop,n_r_max) )
+      end if
+
       if ( r_scheme%version == 'cheb' ) then
 
          if ( present(nocopy) ) then
@@ -357,7 +364,7 @@ contains
                   work(n_f,n_r)=f(n_f,n_r)
                end do
             end do
-       
+
             !-- Transform f to cheb space:
             if ( l_dct_in_loc ) call r_scheme%costf1(work,nMstart,nMstop,n_r_max)
           
@@ -372,17 +379,17 @@ contains
 
             !-- Transform f to cheb space:
             if ( l_dct_in_loc ) call r_scheme%costf1(f,nMstart,nMstop,n_r_max)
-          
+
             !-- Get derivatives:
             !call get_dcheb(f,df,nMstart,nMstop,n_r_max,r_scheme%n_max)
             call get_dcheb(f,df,nMstart,nMstop,n_r_max,n_r_max)
-          
+       
             !-- Transform back:
             if ( l_dct_in_loc ) call r_scheme%costf1(f,nMstart,nMstop,n_r_max)
             if ( l_dct_out_loc ) call r_scheme%costf1(df,nMstart,nMstop,n_r_max)
 
          end if
-       
+
          !-- New map:
          do n_r=1,n_r_max
             do n_f=nMstart,nMstop
@@ -391,6 +398,7 @@ contains
          end do
 
       else
+
 
          !-- Initialise to zero:
          do n_r=1,n_r_max
@@ -441,7 +449,7 @@ contains
       !-- Local:
       integer :: n_r,od
       logical :: l_dct_loc
-
+print*,"get_dr_real_1d"
       if ( present(l_dct) ) then
          l_dct_loc=l_dct
       else
@@ -498,7 +506,7 @@ contains
 
    end subroutine get_dr_real_1d
 !------------------------------------------------------------------------------
-   subroutine get_ddr_complex_2d(f,df,ddf,nMstart,nMstop,n_r_max,r_scheme,l_dct)
+   subroutine get_ddr_complex_2d(f,df,ddf,nMstart,nMstop,n_r_max,r_scheme,l_dct,multi_level)
       !
       !  Returns first radial derivative df and second radial             
       !  derivative ddf of the input function f.                          
@@ -515,7 +523,8 @@ contains
       complex(cp),         intent(in) :: f(nMstart:nMstop,n_r_max)
       class(type_rscheme), intent(in) :: r_scheme
       logical, optional,   intent(in) :: l_dct
-    
+      integer, optional,   intent(in) :: multi_level
+
       !-- Output variables:
       complex(cp), intent(out) :: df(nMstart:nMstop,n_r_max) ! first derivative of f
       complex(cp), intent(out) :: ddf(nMstart:nMstop,n_r_max)! second derivative of f
@@ -529,7 +538,10 @@ contains
       else
          l_dct_loc=.true.
       end if
-
+      if ( present(multi_level) ) then
+         deallocate(work)
+         allocate( work(nMstart:nMstop,n_r_max) )
+      end if
       if ( r_scheme%version == 'cheb' ) then
     
          !-- Copy input functions:

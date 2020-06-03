@@ -101,16 +101,16 @@ contains
          if ( l_heat ) then
             call MPI_GatherV(hdif_T, nm_per_rank, MPI_DEF_REAL,  &
                  &           hdif_T_global, recvcounts, displs,  &
-                 &           MPI_DEF_REAL, 0, MPI_COMM_WORLD, ierr)
+                 &           MPI_DEF_REAL, 0, Comm_Pizza, ierr)
          end if
          if ( l_chem ) then
             call MPI_GatherV(hdif_Xi, nm_per_rank, MPI_DEF_REAL,  &
                  &           hdif_Xi_global, recvcounts, displs,  &
-                 &           MPI_DEF_REAL, 0, MPI_COMM_WORLD, ierr)
+                 &           MPI_DEF_REAL, 0, Comm_Pizza, ierr)
          end if
          call MPI_GatherV(hdif_V, nm_per_rank, MPI_DEF_REAL,  &
               &           hdif_V_global, recvcounts, displs,  &
-              &           MPI_DEF_REAL, 0, MPI_COMM_WORLD, ierr)
+              &           MPI_DEF_REAL, 0, Comm_Pizza, ierr)
 
 
          !-- Now rank0 writes an output file

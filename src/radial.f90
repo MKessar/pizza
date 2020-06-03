@@ -116,7 +116,7 @@ contains
       call rscheme%get_grid(n_r_max, r_icb, r_cmb, ratio1, ratio2, r)
       call rscheme%get_der_mat(n_r_max, l_cheb_coll)
 
-      if ( rank == 0 ) then
+      if ( Key_Pizza == 0 ) then
          file_name = 'radius.'//tag
          open(newunit=file_handle, file=file_name, status='unknown')
          do n_r=1,n_r_max
@@ -186,6 +186,105 @@ contains
       end if
 
    end subroutine radial
+
+
+   subroutine radial_nlevel(rscheme_lvl,n_r_max_lvl,r_lvl,or1_lvl,or2_lvl)
+      !
+      !  Calculates everything needed for radial functions, transforms etc. in the case of multiple resolution level (for LibPFASST)
+      !
+
+      integer :: n_r, file_handle,n_r_max_lvl
+      character(len=100) :: file_name
+      real(cp) :: ratio1, ratio2, delmin, c1
+      real(cp) :: ek_pump_fac
+      real(cp) :: r_lvl(:)         ! radii
+      real(cp) :: or1_lvl(:)       ! :math:`1/r`
+      real(cp) :: or2_lvl(:)       ! :math:`1/r^2`
+      class(type_rscheme) :: rscheme_lvl
+
+!       if ( l_ek_pump .and. (.not. l_non_rot)) then
+!          ek_pump_fac = one
+!       else
+!          ek_pump_fac = 0.0_cp
+!       end if
+
+      ratio1=alph1
+      ratio2=alph2
+
+      call rscheme_lvl%get_grid(n_r_max_lvl, r_icb, r_cmb, ratio1, ratio2, r_lvl)
+      call rscheme_lvl%get_der_mat(n_r_max_lvl, l_cheb_coll)
+
+      if ( Key_Pizza == 0 ) then
+         file_name = 'radius.'//tag
+         open(newunit=file_handle, file=file_name, status='unknown')
+         do n_r=1,n_r_max_lvl
+            write(file_handle,'(I4, ES16.8)') n_r, r(n_r)
+         end do
+         close(file_handle)
+      end if
+
+      rgrav(:)=g0+g1*r(:)/r_cmb+g2*(r_cmb/r)**2
+
+      or1_lvl(:)=one/r(:)      ! 1/r
+      or2_lvl(:)=or1_lvl*or1_lvl(:)    ! 1/r**2
+
+      !-- arrays for Courant conditions
+      c1=(two*pi/(three*real(m_max,cp)))**2
+!       delxh2(1)      =c1*r_cmb**2
+!       delxh2(n_r_max_lvl)=c1*r_icb**2
+!       delxr2(1)      =(r(1)-r(2))**2
+!       delxr2(n_r_max_lvl)=(r(n_r_max_lvl-1)-r(n_r_max_lvl))**2
+!       do n_r=2,n_r_max_lvl-1
+!          delxh2(n_r)=c1*r(n_r)**2
+!          delmin=min((r(n_r-1)-r(n_r)),(r(n_r)-r(n_r+1)))
+!          delxr2(n_r)=delmin*delmin
+!       end do
+
+      !-- Calculate conducting temperature
+!       if ( l_heat ) call get_conducting_state(tcond,dtcond,l_temp_3D,tcond_fac,&
+!                          &                    ktopt,kbott,t_top,t_bot)
+
+      !-- Calculate chemical composition
+!       if ( l_chem ) call get_conducting_state(xicond,dxicond,l_xi_3D,xicond_fac,&
+!                          &                    ktopxi,kbotxi,xi_top,xi_bot)
+
+!       if ( l_non_rot ) then
+!          beta(:)   =0.0_cp
+!          dbeta(:)  =0.0_cp
+!          ekpump(:) =0.0_cp
+!          oheight(:)=1.0_cp
+!          height(:) =1.0_cp
+!       else ! Calculate beta only when this is rotating !
+!          if ( abs(beta_shift) <= 10.0_cp*epsilon(beta_shift) ) then
+!             height(1) = 0.0_cp
+!             beta(1)   = 0.0_cp
+!             dbeta(1)  = 0.0_cp
+!             ekpump(1) = ek_pump_fac*0.0e0_cp
+!             oheight(1)= 0.0e0_cp
+!             do n_r=2,n_r_max_lvl
+!                height(n_r) = two * sqrt(r_cmb**2-r(n_r)**2)
+!                oheight(n_r)= half/sqrt(r_cmb**2-r(n_r)**2)
+!                beta(n_r)   = -r(n_r)/(r_cmb**2-r(n_r)**2)
+!                dbeta(n_r)  = -(r_cmb**2+r(n_r)**2)/(r_cmb**2-r(n_r)**2)**2
+!                ekpump(n_r) = half*ek_pump_fac*sqrt(ek*r_cmb)/ &
+!                &             (r_cmb**2-r(n_r)**2)**(3.0_cp/4.0_cp)
+!             end do
+!          else
+!             do n_r=1,n_r_max_lvl
+!                height(n_r) = two * sqrt((r_cmb+beta_shift)**2-r(n_r)**2)
+!                oheight(n_r)= half/sqrt((r_cmb+beta_shift)**2-r(n_r)**2)
+!                beta(n_r)   = -r(n_r)/((r_cmb+beta_shift)**2-r(n_r)**2)
+!                dbeta(n_r)  = -((r_cmb+beta_shift)**2+r(n_r)**2)/   &
+!                &              ((r_cmb+beta_shift)**2-r(n_r)**2)**2
+!                ekpump(n_r) = half*ek_pump_fac*sqrt(ek*r_cmb)/      &
+!                &             ((r_cmb+beta_shift)**2-r(n_r)**2)**(3.0_cp/4.0_cp)
+!             end do
+!          end if
+! 
+!       end if
+
+   end subroutine radial_nlevel
+   
 !------------------------------------------------------------------------------
    subroutine get_conducting_state(tcond, dtcond, l_3D, cond_fac, ktop, kbot, &
               &                    t_top, t_bot)
@@ -226,8 +325,8 @@ contains
             f_top=real(tr_top,kind=cp)
          end if
       end do
-      if ( rank == 0 ) write(6,*) '! Top Flux', f_top
-      if ( rank == 0 ) write(6,*) '! Bot Flux', f_bot
+      if ( Key_Pizza == 0 ) write(6,*) '! Top Flux', f_top
+      if ( Key_Pizza == 0 ) write(6,*) '! Bot Flux', f_bot
 
       !-- Conductive Temperature profile 2D and 3D projected onto QG
       
@@ -296,8 +395,8 @@ contains
       endif
       endif
       !call logWrite('! Sources introduced to balance surface heat flux!')
-      if (rank == 0) write(6,*) '! Warning: Sources introduced to balance surface heat flux'
-      if (rank == 0) write(6,'(''!      epsc0*pr='',ES16.6)') epsc0
+      if (Key_Pizza == 0) write(6,*) '! Warning: Sources introduced to balance surface heat flux'
+      if (Key_Pizza == 0) write(6,'(''!      epsc0*pr='',ES16.6)') epsc0
       !call logWrite(message)
 
    end subroutine get_conducting_state

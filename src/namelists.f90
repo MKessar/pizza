@@ -7,11 +7,12 @@ module namelists
 
    use iso_c_binding
    use truncation, only: n_r_max, m_max, n_cheb_max, minc
-   use parallel_mod, only: rank
+   use parallel_mod!, only: rank
    use useful, only: abortRun
    use char_manip, only: length_to_blank, capitalize
    use constants, only: zero, one, half, two
    use precision_mod
+   use pf_mod_dtype, only:PF_MAXLEVS
 
    implicit none
 
@@ -115,8 +116,27 @@ module namelists
    real(cp), public :: hdif_vel        ! Hyperdiffusion amplitude on velocity
    integer,  public :: hdif_exp        ! Exponent of the hyperdiffusion profile
    integer,  public :: hdif_m          ! Azimuthal wavenumber for hdif
-
-   public :: read_namelists, write_namelists
+   
+   logical,  public :: Pfasst_stepping          ! Azimuthal wavenumber for hdif
+   integer,  public :: nproc_time
+   integer,  public :: nlevel
+   integer,  public :: niters
+   integer,  public :: qtype
+   real(cp), public :: abs_res_tol        ! Hyperdiffusion amplitude on velocity
+   real(cp), public :: rel_res_tol        ! Hyperdiffusion amplitude on velocity
+   integer,  public :: nnodes
+   integer,  public :: nsweeps_pred
+   integer,  public :: nsweeps
+   
+   integer, public,save :: n_modes_m(PF_MAXLEVS)     ! number of grid points
+   integer, public :: n_points_phi(PF_MAXLEVS)     ! number of grid points
+   integer, public :: n_points_r(PF_MAXLEVS) 
+   real(cp), public :: dt     ! time step
+   real(cp), public :: Tfin   ! Final time   
+   integer, public :: nsteps          ! number of time steps
+   integer, public :: imex_stat       ! type of imex splitting
+  
+   public           :: read_namelists, write_namelists
 
 contains
 
@@ -126,7 +146,7 @@ contains
       integer :: argument_count, input_handle, res
       character(len=100) :: input_filename
       logical :: nml_exist
-
+      INTEGER:: un
       !-- Namelists:
 
       namelist/grid/n_r_max,n_cheb_max,m_max,minc
@@ -149,6 +169,10 @@ contains
       &                       n_frames, n_frame_step, n_specs, n_spec_step,&
       &                       l_vphi_balance,l_vort_balance,bl_cut,        &
       &                       l_2D_spectra, l_2D_SD, l_corr
+      namelist/PF_STEP/Pfasst_stepping
+      namelist/PF_PARAMS/nproc_time,nlevel,niters,qtype,abs_res_tol,&
+      &                  rel_res_tol,nnodes,nsweeps_pred,nsweeps
+      namelist/PARAMS/n_modes_m,n_points_r,n_points_phi,nproc_time,Tfin,nsteps,dt,imex_stat
 
    !namelist/control/tag,n_times
 
@@ -170,58 +194,90 @@ contains
 
          open(newunit=input_handle,file=trim(input_filename))
 
-         if ( rank == 0 ) write(*,*) '!  Reading grid parameters!'
+         if ( Key_Pizza == 0 ) write(*,*) '!  Reading grid parameters!'
          read(input_handle,nml=grid,iostat=res)
-         if ( res /= 0 .and. rank == 0 ) then
+         if ( res /= 0 .and. Key_Pizza == 0 ) then
             write(*,*) '!  No grid namelist found!'
          end if
          close(input_handle)
 
          open(newunit=input_handle,file=trim(input_filename))
          !-- Reading control parameters from namelists in STDIN:
-         if ( rank == 0 ) write(*,*) '!  Reading control parameters!'
+         if ( Key_Pizza == 0 ) write(*,*) '!  Reading control parameters!'
          read(input_handle,nml=control,iostat=res)
-         if ( res /= 0 .and. rank == 0 ) then
+         if ( res /= 0 .and. Key_Pizza == 0 ) then
             write(*,*) '!  No control namelist found!'
          end if
          close(input_handle)
 
          open(newunit=input_handle,file=trim(input_filename))
          !-- Reading control parameters from namelists in STDIN:
-         if ( rank == 0 ) write(*,*) '!  Reading hdif parameters!'
+         if ( Key_Pizza == 0 ) write(*,*) '!  Reading hdif parameters!'
          read(input_handle,nml=hdif,iostat=res)
-         if ( res /= 0 .and. rank == 0 ) then
+         if ( res /= 0 .and. Key_Pizza == 0 ) then
             write(*,*) '!  No hdif namelist found!'
          end if
          close(input_handle)
 
          open(newunit=input_handle,file=trim(input_filename))
          !-- Reading physical parameters from namelists in STDIN:
-         if ( rank == 0 ) write(*,*) '!  Reading physical parameters!'
+         if ( Key_Pizza == 0 ) write(*,*) '!  Reading physical parameters!'
          read(input_handle,nml=phys_param,iostat=res)
-         if ( res /= 0 .and. rank == 0 ) then
+         if ( res /= 0 .and. Key_Pizza == 0 ) then
             write(*,*) '!  No phys_param namelist found!'
          end if
          close(input_handle)
 
          open(newunit=input_handle,file=trim(input_filename))
          !-- Reading start field info from namelists in STDIN:
-         if ( rank == 0 ) write(*,*) '!  Reading start information!'
+         if ( Key_Pizza == 0 ) write(*,*) '!  Reading start information!'
          read(input_handle,nml=start_field,iostat=res)
-         if ( res /= 0 .and. rank == 0 ) then
+         if ( res /= 0 .and. Key_Pizza == 0 ) then
             write(*,*) '! No start_field namelist found!'
          end if
          close(input_handle)
 
          open(newunit=input_handle,file=trim(input_filename))
          !-- Reading start field info from namelists in STDIN:
-         if ( rank == 0 ) write(*,*) '!  Reading output control information!'
+         if ( Key_Pizza == 0 ) write(*,*) '!  Reading output control information!'
          read(input_handle,nml=output_control,iostat=res)
-         if ( res /= 0 .and. rank == 0 ) then
+         if ( res /= 0 .and. Key_Pizza == 0 ) then
             write(*,*) '! No output control namelist found!'
          end if
          close(input_handle)
-
+         
+         open(newunit=input_handle,file=trim(input_filename))
+         !-- Reading start field info from namelists in STDIN:
+         if ( Key_Pizza == 0 ) write(*,*) '!  Reading output control information!'
+         read(input_handle,nml=PF_PARAMS,iostat=res)
+         if ( res /= 0 .and. Key_Pizza == 0 ) then
+            write(*,*) '! No PF_PARAMS namelist found!'
+         end if
+         close(input_handle)
+         open(newunit=input_handle,file=trim(input_filename))
+         !-- Reading start field info from namelists in STDIN:
+         if ( Key_Pizza == 0 ) write(*,*) '!  Reading output control information!'
+         read(input_handle,nml=PF_STEP,iostat=res)
+         if ( res /= 0 .and. Key_Pizza == 0 ) then
+            write(*,*) '! No PF_STEP namelist found!'
+         end if
+         close(input_handle)
+         
+         open(newunit=input_handle,file=trim(input_filename))
+         !-- Reading start field info from namelists in STDIN:
+         if ( Key_Pizza == 0 ) write(*,*) '!  Reading output control information!'
+         read(input_handle,nml=PARAMS,iostat=res)
+         if ( res /= 0 .and. Key_Pizza == 0 ) then
+            write(*,*) '! No PARAMS namelist found!'
+         end if
+         close(input_handle)
+         
+         
+!       un = 9
+!       write(*,*) 'opening file ',TRIM("input.nml"), '  for input'
+!     open(unit=un, file = "input.nml", status = 'old', action = 'read')
+!     read(unit=un, nml = PARAMS)
+!     close(unit=un)
       end if
 
 
@@ -350,7 +406,7 @@ contains
          &    time_scheme == 'LZ232' .or. time_scheme == 'CK232' ) then
             l_buo_imp = .false.
             buo_term = 'EXP'
-            if ( rank == 0 ) then
+            if ( Key_Pizza == 0 ) then
                write(6, &
                &    '(" ! Implicit Buoyancy term not compatible with chosen time scheme")')
                write(6, &
@@ -362,7 +418,7 @@ contains
       if ( .not. l_direct_solve .and. l_coriolis_imp .and. (.not. l_non_rot) ) then
          l_coriolis_imp = .false.
          corio_term = 'EXP'
-         if ( rank == 0 ) then
+         if ( Key_Pizza == 0 ) then
             write(6, &
             &    '(" ! Implicit Coriolis term not compatible with influence matrix method")')
             write(6, &
@@ -544,6 +600,20 @@ contains
       l_2D_SD          =.false.
       l_corr           =.false.
       bl_cut           =1.0e-3_cp
+      
+      ! ----- Pfasst Parameters
+      
+      Pfasst_stepping  =.false.
+      nproc_time = 1
+      nlevel = 1 
+      niters = 100
+      qtype = 1
+      abs_res_tol = 1.d-12
+      rel_res_tol = 1.d-12
+      nnodes =  3 !5 10
+      nsweeps_pred = 1
+      nsweeps = 1
+      
 
    end subroutine default_namelists
 !--------------------------------------------------------------------------------
@@ -667,7 +737,20 @@ contains
       write(n_out,'(''  l_2D_SD         ='',l3,'','')') l_2D_SD
       write(n_out,'(''  l_corr          ='',l3,'','')') l_corr
       write(n_out,*) "/"
-
+      
+      write(n_out,*) "&PF_PARAMS"
+      write(n_out,'(''  Pfasst_stepping ='',l3,'','')') Pfasst_stepping
+      write(n_out,'(''  nproc_time      ='',i5,'','')') nproc_time
+      write(n_out,'(''  nlevel          ='',i5,'','')') nlevel
+      write(n_out,'(''  niters          ='',i5,'','')') niters
+      write(n_out,'(''  qtype           ='',i5,'','')') qtype
+      write(n_out,'(''  abs_res_tol     ='',ES14.6,'','')') abs_res_tol
+      write(n_out,'(''  rel_res_tol     ='',ES14.6,'','')') rel_res_tol
+      write(n_out,'(''  nnodes          ='',i5,'','')') nnodes
+      write(n_out,'(''  nsweeps_pred    ='',i5,'','')') nsweeps_pred
+      write(n_out,'(''  nsweeps         ='',i5,'','')') nsweeps
+      write(n_out,*) "/"
+      
    end subroutine write_namelists
 !--------------------------------------------------------------------------------
 end module namelists

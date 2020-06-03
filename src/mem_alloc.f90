@@ -14,8 +14,8 @@ module mem_alloc
    integer(lip), public :: bytes_allocated
    integer :: n_memory_file
    character(len=72) :: memory_file
-   integer :: n_ranks_print
-   integer, allocatable :: ranks_selected(:)
+   integer :: n_Key_Pizzas_print
+   integer, allocatable :: Key_Pizzas_selected(:)
 
    public :: initialize_memory_counter, memWrite, finalize_memory_counter
 
@@ -30,18 +30,18 @@ contains
       integer :: iproc
 
       bytes_allocated = 0 ! 
-      n_ranks_print = min(n_procs-1, 6)
+      n_Key_Pizzas_print = min(NProc_Pizza-1, 6)
 
-      if ( n_ranks_print > 0 ) then
-         allocate ( ranks_selected(n_ranks_print) )
-         if ( n_procs < 8 ) then
-            ranks_selected = [(iproc,iproc=1,n_procs-1)]
+      if ( n_Key_Pizzas_print > 0 ) then
+         allocate ( Key_Pizzas_selected(n_Key_Pizzas_print) )
+         if ( NProc_Pizza < 8 ) then
+            Key_Pizzas_selected = [(iproc,iproc=1,NProc_Pizza-1)]
          else
-            ranks_selected =[1,2,3,4,n_procs-2,n_procs-1]
+            Key_Pizzas_selected =[1,2,3,4,NProc_Pizza-2,NProc_Pizza-1]
          end if
       end if
 
-      if ( rank == 0 ) then
+      if ( Key_Pizza == 0 ) then
          memory_file = 'mem_alloc.'//tag
          open(newunit=n_memory_file, file=memory_file, &
               status='unknown', position='append')
@@ -63,42 +63,42 @@ contains
 
       header=' !----------------------------------------------'
 
-      if ( rank == 0 ) then
+      if ( Key_Pizza == 0 ) then
          header(len(header)/2-len(origin)/2-1:len(header)/2+len(origin)/2+1) = &
                    ' '//origin//' '
          !write(n_memory_file, "(A20,A25)") ' !-----------------', origin
          write(n_memory_file, "(A48)") header
          st = human_readable_size(bytes_alloc)
-         write(n_memory_file, "(A17,A,I4)") st," allocated on rank ", rank
+         write(n_memory_file, "(A17,A,I4)") st," allocated on Key_Pizza ", Key_Pizza
       end if
 
       sr_tag = 234876 ! arbitrary tag
 
-      if  ( n_ranks_print /= 0 ) then
+      if  ( n_Key_Pizzas_print /= 0 ) then
 
-         do i=1,n_ranks_print
-            iproc=ranks_selected(i)
-            if ( rank == iproc ) then
+         do i=1,n_Key_Pizzas_print
+            iproc=Key_Pizzas_selected(i)
+            if ( Key_Pizza == iproc ) then
                call MPI_Send(bytes_alloc,1,MPI_LONG,0,sr_tag+iproc, &
-                             MPI_COMM_WORLD,ierr)
+                             Comm_Pizza,ierr)
             end if
          end do
-         do i=1,n_ranks_print
-            iproc=ranks_selected(i)
-            if ( rank == 0 ) then
+         do i=1,n_Key_Pizzas_print
+            iproc=Key_Pizzas_selected(i)
+            if ( Key_Pizza == 0 ) then
                call MPI_Recv(bytes_other_proc,1,MPI_LONG,iproc,sr_tag+iproc, &
-                             MPI_COMM_WORLD,status,ierr)
-               if ( n_procs > 8 .and. iproc == n_procs -2 ) then
+                             Comm_Pizza,status,ierr)
+               if ( NProc_Pizza > 8 .and. iproc == NProc_Pizza -2 ) then
                   write(n_memory_file, *) "               ..."
                end if
                st = human_readable_size(bytes_other_proc)
-               write(n_memory_file, "(A17,A,I4)") st, " allocated on rank ", iproc
+               write(n_memory_file, "(A17,A,I4)") st, " allocated on Key_Pizza ", iproc
             end if
          end do
 
       end if
 
-      if ( rank == 0 ) write(n_memory_file, *) " "
+      if ( Key_Pizza == 0 ) write(n_memory_file, *) " "
 
    end subroutine memWrite
 !------------------------------------------------------------------------------
@@ -109,43 +109,43 @@ contains
       integer(lip) :: bytes_other_proc
       integer :: i, iproc, sr_tag, status(MPI_STATUS_SIZE)
 
-      if ( rank == 0 ) then
+      if ( Key_Pizza == 0 ) then
          write(n_memory_file, *) " "
          write(n_memory_file, *) "!=============================================="
          write(n_memory_file, *) "!           TOTAL MEMORY ALLOCATION           !"
          write(n_memory_file, *) "!=============================================="
          write(n_memory_file, *) " "
          st = human_readable_size(bytes_allocated)
-         write(n_memory_file, "(A17,A,I4)") st," allocated on rank ", rank
+         write(n_memory_file, "(A17,A,I4)") st," allocated on Key_Pizza ", Key_Pizza
       end if
 
       sr_tag =62985
 
-      if  ( n_ranks_print /= 0 ) then
+      if  ( n_Key_Pizzas_print /= 0 ) then
 
-         do i=1,n_ranks_print
-            iproc=ranks_selected(i)
-            if ( rank == iproc ) then
+         do i=1,n_Key_Pizzas_print
+            iproc=Key_Pizzas_selected(i)
+            if ( Key_Pizza == iproc ) then
                call MPI_Send(bytes_allocated,1,MPI_LONG,0,sr_tag+iproc, &
-                             MPI_COMM_WORLD,ierr)
+                             Comm_Pizza,ierr)
             end if
          end do
-         do i=1,n_ranks_print
-            iproc=ranks_selected(i)
-            if ( rank == 0 ) then
+         do i=1,n_Key_Pizzas_print
+            iproc=Key_Pizzas_selected(i)
+            if ( Key_Pizza == 0 ) then
                call MPI_Recv(bytes_other_proc,1,MPI_LONG,iproc,sr_tag+iproc, &
-                             MPI_COMM_WORLD,status,ierr)
-               if ( n_procs > 8 .and. iproc == n_procs-2 ) then
+                             Comm_Pizza,status,ierr)
+               if ( NProc_Pizza > 8 .and. iproc == NProc_Pizza-2 ) then
                   write(n_memory_file, *) "               ..."
                end if
                st = human_readable_size(bytes_other_proc)
-               write(n_memory_file, "(A17,A,I4)") st, " allocated on rank ", iproc
+               write(n_memory_file, "(A17,A,I4)") st, " allocated on Key_Pizza ", iproc
             end if
          end do
 
       end if
 
-      if ( rank == 0 ) then
+      if ( Key_Pizza == 0 ) then
          close(n_memory_file)
       end if
 

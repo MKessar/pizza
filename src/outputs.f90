@@ -40,7 +40,7 @@ module outputs
    real(cp) :: timeLast_rad, timeAvg_rad, timeAvg_vortbal
    real(cp) :: timeAvg_spec
    integer, public :: n_log_file
-   integer :: n_rey_file_2D, n_heat_file, n_kin_file_2D, n_power_file_2D
+   integer :: n_rey_file_2D, n_heat_file, n_kin_file_2D, n_power_file_2D,n_temp_file_2D
    integer :: n_lscale_file, n_sig_file, n_corr_file, n_chem_file
    integer :: n_rey_file_3D, n_power_file_3D, n_kin_file_3D
    character(len=144), public :: log_file
@@ -61,55 +61,76 @@ contains
       logical :: log_exists
       character(len=144) :: file_name
 
-      if ( rank == 0 ) then
-         log_file = 'log.'//tag
+      if ( Key_Pizza == 0 ) then
+         write(log_file, '(A,I0,A,A)') 'log_TimeProc_',Color_Pizza,'.',tag
+!          log_file = 'log.'//tag
          inquire(file=log_file, exist=log_exists)
          if ( log_exists ) then
             call abortRun('! log file already exists, please change tag')
          end if
          open(newunit=n_log_file, file=log_file, status='new')
-         file_name = 'e_kin.'//tag
+
+         write(file_name, '(A,I0,A,A)') 'e_kin_TimeProc_',Color_Pizza,'.',tag
+!          file_name = 'e_kin.'//tag
          open(newunit=n_kin_file_2D, file=file_name, status='new')
-         file_name = 'power.'//tag
+
+         write(file_name, '(A,I0,A,A)') 'power_TimeProc_',Color_Pizza,'.',tag
+!          file_name = 'power.'//tag
          open(newunit=n_power_file_2D, file=file_name, status='new')
+
+         write(file_name, '(A,I0,A,A)') 'e_temp_TimeProc_',Color_Pizza,'.',tag
+         open(newunit=n_temp_file_2D, file=file_name, status='new')
+ 
          if ( index(time_scale, 'ROT') /= 0 ) then
-            file_name = 'rossby.'//tag
+            write(file_name, '(A,I0,A,A)') 'rossby_TimeProc_',Color_Pizza,'.',tag
+!             file_name = 'rossby.'//tag
          else
-            file_name = 'reynolds.'//tag
+            write(file_name, '(A,I0,A,A)') 'reynolds_TimeProc_',Color_Pizza,'.',tag
+!             file_name = 'reynolds.'//tag
          end if
          open(newunit=n_rey_file_2D,file=file_name, status='new')
-         file_name = 'length_scales.'//tag
+         
+         write(file_name, '(A,I0,A,A)') 'length_scales_TimeProc_',Color_Pizza,'.',tag
+!          file_name = 'length_scales.'//tag
          open(newunit=n_lscale_file, file=file_name, status='new')
 
          if ( l_heat ) then
-            file_name = 'heat.'//tag
+            write(file_name, '(A,I0,A,A)') 'heat_TimeProc_',Color_Pizza,'.',tag
+!             file_name = 'heat.'//tag
             open(newunit=n_heat_file, file=file_name, status='new')
          end if
 
          if ( l_chem ) then
-            file_name = 'composition.'//tag
+            write(file_name, '(A,I0,A,A)') 'composition_TimeProc_',Color_Pizza,'.',tag
+!             file_name = 'composition.'//tag
             open(newunit=n_chem_file, file=file_name, status='new')
          end if
 
          if ( .not. l_non_rot ) then
-            file_name = 'e_kin_3D.' // tag
+            write(file_name, '(A,I0,A,A)') 'e_kin_3D_TimeProc_',Color_Pizza,'.',tag
+!             file_name = 'e_kin_3D.' // tag
             open(newunit=n_kin_file_3D, file=file_name, status='new')
-            file_name = 'power_3D.' // tag
+            write(file_name, '(A,I0,A,A)') 'power_3D_TimeProc_',Color_Pizza,'.',tag
+!             file_name = 'power_3D.' // tag
             open(newunit=n_power_file_3D, file=file_name, status='new')
             if ( index(time_scale, 'ROT') /= 0 ) then
+               write(file_name, '(A,I0,A,A)') 'rossby_3D_TimeProc_',Color_Pizza,'.',tag
                file_name = 'rossby_3D.'//tag
             else
+               write(file_name, '(A,I0,A,A)') 'reynolds_3D_TimeProc_',Color_Pizza,'.',tag
                file_name = 'reynolds_3D.'//tag
             end if
             open(newunit=n_rey_file_3D,file=file_name, status='new')
          end if
 
          if ( l_corr ) then
-            file_name = 'corr.' // tag
+            write(file_name, '(A,I0,A,A)') 'corr_TimeProc_',Color_Pizza,'.',tag
+!             file_name = 'corr.' // tag
             open(newunit=n_corr_file, file=file_name, status='new')
          end if
 
-         file_name = 'signal.'//tag
+         write(file_name, '(A,I0,A,A)') 'signal_TimeProc_',Color_Pizza,'.',tag
+!          file_name = 'signal.'//tag
          open(newunit=n_sig_file, file=file_name, status='unknown')
          write(n_sig_file,'(A3)') 'NOT'
          close(n_sig_file)
@@ -142,7 +163,7 @@ contains
 !------------------------------------------------------------------------------
    subroutine finalize_outputs
 
-      if ( rank == 0 ) then
+      if ( Key_Pizza == 0 ) then
          call enstrophyR%finalize()
          call up2R%finalize()
          call us2R%finalize()
@@ -158,7 +179,7 @@ contains
 
       if ( l_vphi_balance ) call vp_bal%finalize()
 
-      if ( rank == 0 ) then
+      if ( Key_Pizza == 0 ) then
          if ( l_corr ) close(n_corr_file)
          if ( .not. l_non_rot ) then
             close(n_rey_file_3D)
@@ -172,6 +193,7 @@ contains
          close(n_power_file_2D)
          close(n_kin_file_2D)
          close(n_log_file)
+         close(n_temp_file_2D)
       end if
 
    end subroutine finalize_outputs
@@ -187,9 +209,11 @@ contains
 
       signals(:) = 0
 
-      if ( rank == 0 ) then
+      if ( Key_Pizza == 0 ) then
          !----- Signalling via file signal:
-         message='signal.'//tag
+!          message='signal.'//tag
+         write(message, '(A,I0,A,A)') 'signal_TimeProc_',Color_Pizza,'.',tag
+         
          open(newunit=n_sig_file, file=trim(message), status='old')
          read(n_sig_file,*) SIG
          close(n_sig_file)
@@ -219,7 +243,7 @@ contains
          end if
       end if
 
-      call MPI_Bcast(signals,4,MPI_Integer,0,MPI_COMM_WORLD,ierr)
+      call MPI_Bcast(signals,4,MPI_Integer,0,Comm_Pizza,ierr)
 
    end subroutine read_signal_file
 !------------------------------------------------------------------------------
@@ -278,20 +302,22 @@ contains
          call spec%write_spectra(us2_m_Mloc, up2_m_Mloc, enst_m_Mloc,Temp2_m_Mloc)
       end if
 
+!       print*,"l_frame=",l_frame,"rank=",rank
+
       if ( l_frame ) then
          if ( l_heat ) then
-            write(frame_name, '(A,I0,A,A)') 'frame_temp_',frame_counter,'.',tag
+            write(frame_name, '(A,I0,A,I0,A,A)') 'frame_temp_',frame_counter,'TimeProc_',Color_Pizza,'.',tag
             call write_snapshot_mloc(frame_name, time, temp_Mloc)
          end if
          if ( l_chem ) then
-            write(frame_name, '(A,I0,A,A)') 'frame_xi_',frame_counter,'.',tag
+            write(frame_name, '(A,I0,A,I0,A,A)') 'frame_xi_',frame_counter,'TimeProc_',Color_Pizza,'.',tag
             call write_snapshot_mloc(frame_name, time, xi_Mloc)
          end if
-         write(frame_name, '(A,I0,A,A)') 'frame_us_',frame_counter,'.',tag
+         write(frame_name, '(A,I0,A,I0,A,A)') 'frame_us_',frame_counter,'TimeProc_',Color_Pizza,'.',tag
          call write_snapshot_mloc(frame_name, time, us_Mloc)
-         write(frame_name, '(A,I0,A,A)') 'frame_up_',frame_counter,'.',tag
+         write(frame_name, '(A,I0,A,I0,A,A)') 'frame_up_',frame_counter,'TimeProc_',Color_Pizza,'.',tag
          call write_snapshot_mloc(frame_name, time, up_Mloc)
-         write(frame_name, '(A,I0,A,A)') 'frame_om_',frame_counter,'.',tag
+         write(frame_name, '(A,I0,A,I0,A,A)') 'frame_om_',frame_counter,'TimeProc_',Color_Pizza,'.',tag
          call write_snapshot_mloc(frame_name, time, om_Mloc)
          frame_counter = frame_counter+1
       end if
@@ -415,12 +441,13 @@ contains
       real(cp), intent(out) :: up2_r(n_r_max)
       real(cp), intent(out) :: enstrophy(n_r_max)
       real(cp), intent(out) :: flux_r(n_r_max)
-
+      
+      
       !-- Local variables
       integer :: n_r, n_m, m, n_m0
       real(cp) :: dlus_peak, dlekin_peak, dlvort_peak
       real(cp) :: dl_diss, dlekin_int, pow_3D
-      real(cp) :: tTop, tBot, visc_2D, pow_2D, pum, visc_3D
+      real(cp) :: tTop, tBot, visc_2D, pow_2D, pum, visc_3D, E_temp
       real(cp) :: us2_2D, up2_2D, up2_axi_2D, us2_3D, up2_3D, up2_axi_3D, uz2_3D
       real(cp) :: chem_2D, chem_3D, ShTop, ShBot, beta_xi, Sh_vol, xiTop, xiBot
       real(cp) :: up2_axi_r(n_r_max), nu_vol_r(n_r_max), nu_cond_r(n_r_max)
@@ -430,18 +457,20 @@ contains
       real(cp) :: NuTop, NuBot, beta_t, Nu_vol, Nu_int, fac
       real(cp) :: rey_2D, rey_fluct_2D, rey_zon_2D
       real(cp) :: rey_3D, rey_fluct_3D, rey_zon_3D
+      real(cp) :: E_temp_radial(n_r_max)
 
       do n_r=1,n_r_max
-         us2_r(n_r)     =0.0_cp
-         up2_r(n_r)     =0.0_cp
-         up2_axi_r(n_r) =0.0_cp
-         enstrophy(n_r) =0.0_cp
-         buo_power(n_r) =0.0_cp
-         chem_power(n_r)=0.0_cp
-         pump(n_r)      =0.0_cp
-         nu_vol_r(n_r)  =0.0_cp
-         sh_vol_r(n_r)  =0.0_cp
-         flux_r(n_r)    =0.0_cp
+         us2_r(n_r)         = 0.0_cp
+         up2_r(n_r)         = 0.0_cp
+         up2_axi_r(n_r)     = 0.0_cp
+         enstrophy(n_r)     = 0.0_cp
+         buo_power(n_r)     = 0.0_cp
+         chem_power(n_r)    = 0.0_cp
+         pump(n_r)          = 0.0_cp
+         nu_vol_r(n_r)      = 0.0_cp
+         sh_vol_r(n_r)      = 0.0_cp
+         flux_r(n_r)        = 0.0_cp
+         E_temp_radial(n_r) = 0.0_cp
          do n_m=nMstart,nMstop
             m = idx2m(n_m)
             us2_r(n_r)    =us2_r(n_r)+cc2real(us_Mloc(n_m,n_r),m)
@@ -458,6 +487,7 @@ contains
 
                flux_r(n_r)   =flux_r(n_r)+cc22real(us_Mloc(n_m,n_r), &
                &                                   temp_Mloc(n_m,n_r), m)
+               E_temp_radial(n_r)   =E_temp_radial(n_r)+cc2real(temp_Mloc(n_m,n_r), m)
             end if
 
             if ( l_chem ) then
@@ -492,6 +522,7 @@ contains
          call reduce_radial_on_rank(buo_power, 0)
          call reduce_radial_on_rank(flux_r, 0)
          call reduce_radial_on_rank(nu_vol_r, 0)
+         call reduce_radial_on_rank(E_temp_radial, 0)
       end if
       if ( l_chem ) then
          call reduce_radial_on_rank(sh_vol_r, 0)
@@ -504,7 +535,7 @@ contains
       call get_lengthscales(us2_m, up2_m, enstrophy_m, dlus_peak, dlekin_peak,  &
            &                dlvort_peak, dlekin_int)
 
-      if ( rank == 0 ) then
+      if ( Key_Pizza == 0 ) then
 
          !-----
          !-- Kinetic energy (2D and 3D)
@@ -572,8 +603,10 @@ contains
             tmp(:)=BuoFac*buo_power(:)*rgrav(:)*r(:)
             pow_2D=rInt_R(tmp, r, rscheme)
             pow_2D=round_off(two*pi*pow_2D)
+            E_temp=rInt_R(E_temp_radial, r, rscheme)
          else
             pow_2D=0.0_cp
+            E_temp=0.0_cp
          end if
 
          if ( l_chem ) then
@@ -632,6 +665,8 @@ contains
          &                                              up2_axi_2D
          write(n_power_file_2D, '(1P, es20.12, 3es16.8)') time, pow_2D, chem_2D, &
          &                                                visc_2D
+         
+         write(n_temp_file_2D, '(1P, es20.12, 3es16.8)') time, E_temp 
 
          write(n_rey_file_2D, '(1P, es20.12, 3es16.8)') time, rey_2D, rey_zon_2D,&
          &                                              rey_fluct_2D
@@ -811,7 +846,7 @@ contains
       !-- MPI reduction
       call reduce_radial_on_rank(tmp, 0)
 
-      if ( rank == 0 ) then
+      if ( Key_Pizza == 0 ) then
          !-- Radial integration
          stress = rInt_R(tmp, r, rscheme)
          stress = two*pi*stress
@@ -888,9 +923,9 @@ contains
 
       !-- MPI reduction
       call MPI_AllReduce(MPI_IN_PLACE, E, 1, MPI_DEF_REAL, MPI_SUM, &
-           &             MPI_COMM_WORLD, ierr)
+           &             Comm_Pizza, ierr)
       call MPI_AllReduce(MPI_IN_PLACE, Em, 1, MPI_DEF_REAL, MPI_SUM, &
-           &             MPI_COMM_WORLD, ierr)
+           &             Comm_Pizza, ierr)
 
       if ( abs(E) > 10.0_cp*epsilon(one) ) then
          dlekin_int = pi*E/Em
