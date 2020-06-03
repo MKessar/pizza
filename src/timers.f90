@@ -5,7 +5,7 @@ module timers_mod
    !
 
    use precision_mod
-   use parallel_mod, only : rank
+   use parallel_mod!, only : rank
    use communications, only: my_reduce_mean
    use useful, only: formatTime
 
@@ -118,7 +118,7 @@ contains
       !-- Input variables
       integer :: n
 
-      if ( rank == 0 ) then
+      if ( Key_pizza == 0 ) then
          call formatTime(n, &
          &    '! Mean wall time for radial loop            :',this%r_loop)
          call formatTime(n, &

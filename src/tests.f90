@@ -52,7 +52,7 @@ contains
          n_in = 0
       end if
 
-      if ( rank == 0 ) then
+      if ( Key_Pizza == 0 ) then
          allocate ( type_cheb :: rscheme )
          r_cmb=one/(one-radratio)
          r_icb=r_cmb-one
@@ -162,7 +162,7 @@ contains
          n_in = 0
       end if
 
-      if ( rank == 0 ) then
+      if ( Key_Pizza == 0 ) then
          allocate ( type_cheb :: rscheme )
          r_cmb=one/(one-radratio)
          r_icb=radratio/(one-radratio)
@@ -255,7 +255,7 @@ contains
          n_in = 0
       end if
 
-      if ( rank == 0 ) then
+      if ( Key_Pizza == 0 ) then
          allocate ( type_cheb :: rscheme )
          r_cmb=two*pi
          r_icb=0.0_cp
@@ -1109,7 +1109,7 @@ contains
          n_in = 0
       end if
 
-      if ( rank == 0 ) then
+      if ( Key_Pizza == 0 ) then
          allocate ( type_cheb :: rscheme )
          r_cmb=one/(one-radratio)
          r_icb=radratio/(one-radratio)
@@ -1318,7 +1318,7 @@ contains
          n_in = 0
       end if
 
-      if ( rank == 0 ) then
+      if ( Key_Pizza == 0 ) then
          allocate ( type_cheb :: rscheme )
          r_cmb=one/(one-radratio)
          r_icb=r_cmb-one

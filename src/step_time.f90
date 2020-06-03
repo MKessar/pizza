@@ -31,7 +31,7 @@ module step_time
        &                n_frame_step, n_checkpoints, n_checkpoint_step,   &
        &                n_spec_step, n_specs, l_vphi_balance, l_AB1,      &
        &                l_cheb_coll, l_direct_solve, l_vort_balance,      &
-       &                l_heat, l_chem
+       &                l_heat, l_chem,Pfasst_stepping
    use outputs, only: n_log_file, write_outputs, vp_bal, vort_bal, &
        &              read_signal_file, spec
    use useful, only: logWrite, abortRun, formatTime, l_correct_step
@@ -39,7 +39,7 @@ module step_time
    use parallel_mod
    use precision_mod
    use timers_mod, only: timers_type
-
+   use main_LIBPFASST_CALL
    implicit none
 
    private
@@ -117,255 +117,264 @@ contains
          n_time_steps_run=n_time_steps+1  ! Last time step for output only !
       end if
 
-      call MPI_Barrier(MPI_COMM_WORLD, ierr)
+      call MPI_Barrier(Comm_Pizza, ierr)
+      if (Pfasst_stepping) then
+      
+         call run_pfasst_pizza(Comm_LIBPFASST)
+         
+      else
+      
+         n_time_steps_go = 0
+         outer: do n_time_step=1,n_time_steps_run
+              runStartT = MPI_Wtime()
 
-      n_time_steps_go = 0
-      outer: do n_time_step=1,n_time_steps_run
+              !-------------------
+              !-- Determine whether we will need outputs at this time step
+              !-------------------
+              l_log = l_correct_step(n_time_step-1,n_time_steps,n_log_step,0)
+              if ( n_time_step+1 <= n_time_steps+1 ) then
+                 l_log_next = l_correct_step(n_time_step,n_time_steps,n_log_step,0)
+              end if
+              l_rst = l_correct_step(n_time_step-1,n_time_steps,n_checkpoint_step, &
+                    &              n_checkpoints) .or. n_rst_signal == 1
+              l_frame = l_correct_step(n_time_step-1,n_time_steps,n_frame_step,n_frames) &
+              &         .or. n_frame_signal == 1
+              spec%l_calc = l_correct_step(n_time_step-1,n_time_steps,n_spec_step,n_specs) &
+              &        .or. n_spec_signal == 1
+              l_vphi_bal_write = l_log .and. l_vphi_balance
+              vp_bal%l_calc = l_log_next .and. l_vphi_balance
+              vort_bal%l_calc = l_log_next .and. l_vort_balance
+              !-----------------
+              !-- Check SIGNALS
+              !-----------------
+              call check_signals(run_time_passed, signals)
+              n_stop_signal  = signals(1)
+              n_frame_signal = signals(2)
+              n_rst_signal   = signals(3)
+              n_spec_signal  = signals(4)
+              !-------------------
+              !-- Check whether the run is not getting out of time
+              !-------------------
+              call MPI_Allreduce(MPI_IN_PLACE,timers%tot,1,MPI_DEF_REAL, &
+                   &             MPI_MAX,Comm_Pizza,ierr)
+              if ( timers%tot+run_time_init > run_time_requested ) then
+              write(message,'("! Run time limit exeeded !")')
+              call logWrite(message, n_log_file)
+              l_stop_time=.true.
+              end if
 
-         runStartT = MPI_Wtime()
-         !-------------------
-         !-- Determine whether we will need outputs at this time step
-         !-------------------
-         l_log = l_correct_step(n_time_step-1,n_time_steps,n_log_step,0)
-         if ( n_time_step+1 <= n_time_steps+1 ) then
-            l_log_next = l_correct_step(n_time_step,n_time_steps,n_log_step,0)
-         end if
-         l_rst = l_correct_step(n_time_step-1,n_time_steps,n_checkpoint_step, &
-                 &              n_checkpoints) .or. n_rst_signal == 1
-         l_frame = l_correct_step(n_time_step-1,n_time_steps,n_frame_step,n_frames) &
-         &         .or. n_frame_signal == 1
-         spec%l_calc = l_correct_step(n_time_step-1,n_time_steps,n_spec_step,n_specs) &
-         &        .or. n_spec_signal == 1
-         l_vphi_bal_write = l_log .and. l_vphi_balance
-         vp_bal%l_calc = l_log_next .and. l_vphi_balance
-         vort_bal%l_calc = l_log_next .and. l_vort_balance
+             !-- Some reasons to stop the run
+             if ( n_stop_signal > 0 ) l_stop_time=.true.
+             if ( n_time_step == n_time_steps_run ) l_stop_time=.true.
+             if ( time > tEND .and. tEND /= 0.0_cp ) l_stop_time=.true.
 
-         !-----------------
-         !-- Check SIGNALS
-         !-----------------
-         call check_signals(run_time_passed, signals)
-         n_stop_signal  = signals(1)
-         n_frame_signal = signals(2)
-         n_rst_signal   = signals(3)
-         n_spec_signal  = signals(4)
+             if ( n_time_step == 1 ) l_log=.true.
 
-         !-------------------
-         !-- Check whether the run is not getting out of time
-         !-------------------
-         call MPI_Allreduce(MPI_IN_PLACE,timers%tot,1,MPI_DEF_REAL, &
-              &             MPI_MAX,MPI_COMM_WORLD,ierr)
-         if ( timers%tot+run_time_init > run_time_requested ) then
-            write(message,'("! Run time limit exeeded !")')
-            call logWrite(message, n_log_file)
-            l_stop_time=.true.
-         end if
+             if ( l_stop_time ) then             
+                l_rst=.true.           
+                l_log=.true.
+             end if
+         
 
-         !-- Some reasons to stop the run
-         if ( n_stop_signal > 0 ) l_stop_time=.true.
-         if ( n_time_step == n_time_steps_run ) l_stop_time=.true.
-         if ( time > tEND .and. tEND /= 0.0_cp ) l_stop_time=.true.
+             !-------------------
+             !-- Outputs
+             !-------------------
+             !-- Get time series
+!            runStart = MPI_Wtime()
+             call write_outputs(time, tscheme, n_time_step, l_log, l_rst, l_frame, &
+                  &             l_vphi_bal_write, l_stop_time, us_Mloc,  up_Mloc,  &
+                  &             om_Mloc, temp_Mloc, dtemp_Mloc, xi_Mloc, dxi_Mloc, &
+                  &             dpsidt, dTdt, dxidt)
+ !           runStop = MPI_Wtime()
+             if (runStop>runStart) then
+             timers%n_io_calls=timers%n_io_calls+1
+             timers%io        =timers%io+(runStop-runStart)
+             end if
+         
+             !-- If this is running out of time, exit the loop and terminate the calculations
+             if ( l_stop_time ) exit outer
 
-         if ( n_time_step == 1 ) l_log=.true.
 
-         if ( l_stop_time ) then             
-            l_rst=.true.           
-            l_log=.true.
-         end if
 
-         !-------------------
-         !-- Outputs
-         !-------------------
-         !-- Get time series
-         runStart = MPI_Wtime()
-         call write_outputs(time, tscheme, n_time_step, l_log, l_rst, l_frame, &
-              &             l_vphi_bal_write, l_stop_time, us_Mloc,  up_Mloc,  &
-              &             om_Mloc, temp_Mloc, dtemp_Mloc, xi_Mloc, dxi_Mloc, &
-              &             dpsidt, dTdt, dxidt)
-         runStop = MPI_Wtime()
-         if (runStop>runStart) then
-            timers%n_io_calls=timers%n_io_calls+1
-            timers%io        =timers%io+(runStop-runStart)
-         end if
+             !-- Now loop over the stages
+             tscheme%istage = 1
+             do n_stage=1,tscheme%nstages
 
-         !-- If this is running out of time, exit the loop and terminate the calculations
-         if ( l_stop_time ) exit outer
+                if ( tscheme%l_exp_calc(n_stage) .or. vp_bal%l_calc .or. vort_bal%l_calc ) then
+                   !-------------------
+                   !-- MPI transpositions from m-distributed to r-distributed
+                   !-------------------
+                   runStart = MPI_Wtime()
+                   call transp_m2r(m2r_fields, us_Mloc, us_Rloc)
+                   call transp_m2r(m2r_fields, up_Mloc, up_Rloc)
+                   call transp_m2r(m2r_fields, om_Mloc, om_Rloc)
+                   if ( l_heat ) call transp_m2r(m2r_fields, temp_Mloc, temp_Rloc)
+                   if ( l_chem ) call transp_m2r(m2r_fields, xi_Mloc, xi_Rloc)
+                   runStop = MPI_Wtime()
+                   if (runStop>runStart) then
+                      timers%n_mpi_comms=timers%n_mpi_comms+1
+                      timers%mpi_comms  =timers%mpi_comms+(runStop-runStart)
+                   end if
 
-         !-- Now loop over the stages
-         tscheme%istage = 1
-         do n_stage=1,tscheme%nstages
+                   !-------------------
+                   !-- Radial loop
+                   !-------------------
+                   runStart = MPI_Wtime()
+                   call radial_loop( us_Rloc, up_Rloc, om_Rloc, temp_Rloc, xi_Rloc, &
+                        &            dtempdt_Rloc, dVsT_Rloc, dxidt_Rloc,           &
+                        &            dVsXi_Rloc, dpsidt_Rloc, dVsOm_Rloc, dtr_Rloc, &
+                        &            dth_Rloc, timers, tscheme )
+                   runStop = MPI_Wtime()
+                   if (runStop>runStart) then
+                      timers%n_r_loops=timers%n_r_loops+1
+                      timers%r_loop   =timers%r_loop+(runStop-runStart)
+                   end if
 
-            if ( tscheme%l_exp_calc(n_stage) .or. vp_bal%l_calc .or. vort_bal%l_calc ) then
-               !-------------------
-               !-- MPI transpositions from m-distributed to r-distributed
-               !-------------------
-               runStart = MPI_Wtime()
-               call transp_m2r(m2r_fields, us_Mloc, us_Rloc)
-               call transp_m2r(m2r_fields, up_Mloc, up_Rloc)
-               call transp_m2r(m2r_fields, om_Mloc, om_Rloc)
-               if ( l_heat ) call transp_m2r(m2r_fields, temp_Mloc, temp_Rloc)
-               if ( l_chem ) call transp_m2r(m2r_fields, xi_Mloc, xi_Rloc)
-               runStop = MPI_Wtime()
-               if (runStop>runStart) then
-                  timers%n_mpi_comms=timers%n_mpi_comms+1
-                  timers%mpi_comms  =timers%mpi_comms+(runStop-runStart)
-               end if
+                   !------------------
+                   !-- MPI transpositions from r-distributed to m-distributed
+                   !------------------
+                   runStart = MPI_Wtime()
+                   
+                   if ( l_heat ) then
+                      call transp_r2m(r2m_fields, dtempdt_Rloc, &
+                           &          dTdt%expl(:,:,tscheme%istage))
 
-               !-------------------
-               !-- Radial loop
-               !-------------------
-               runStart = MPI_Wtime()
-               call radial_loop( us_Rloc, up_Rloc, om_Rloc, temp_Rloc, xi_Rloc, &
-                    &            dtempdt_Rloc, dVsT_Rloc, dxidt_Rloc,           &
-                    &            dVsXi_Rloc, dpsidt_Rloc, dVsOm_Rloc, dtr_Rloc, &
-                    &            dth_Rloc, timers, tscheme )
-               runStop = MPI_Wtime()
-               if (runStop>runStart) then
-                  timers%n_r_loops=timers%n_r_loops+1
-                  timers%r_loop   =timers%r_loop+(runStop-runStart)
-               end if
+                      call transp_r2m(r2m_fields, dVsT_Rloc, dVsT_Mloc)
+                   end if
+                   if ( l_chem ) then
+                      call transp_r2m(r2m_fields, dxidt_Rloc, &
+                           &          dxidt%expl(:,:,tscheme%istage))
+                      call transp_r2m(r2m_fields, dVsXi_Rloc, dVsXi_Mloc)
+                   end if
+                   call transp_r2m(r2m_fields, dpsidt_Rloc, &
+                        &          dpsidt%expl(:,:,tscheme%istage))
+                   call transp_r2m(r2m_fields, dVsOm_Rloc, dVsOm_Mloc)
+                   runStop = MPI_Wtime()
+                   if (runStop>runStart) then
+                      timers%mpi_comms=timers%mpi_comms+(runStop-runStart)
+                   end if
 
-               !------------------
-               !-- MPI transpositions from r-distributed to m-distributed
-               !------------------
-               runStart = MPI_Wtime()
-               if ( l_heat ) then
-                  call transp_r2m(r2m_fields, dtempdt_Rloc, &
-                       &          dTdt%expl(:,:,tscheme%istage))
-                  call transp_r2m(r2m_fields, dVsT_Rloc, dVsT_Mloc)
-               end if
-               if ( l_chem ) then
-                  call transp_r2m(r2m_fields, dxidt_Rloc, &
-                       &          dxidt%expl(:,:,tscheme%istage))
-                  call transp_r2m(r2m_fields, dVsXi_Rloc, dVsXi_Mloc)
-               end if
-               call transp_r2m(r2m_fields, dpsidt_Rloc, &
-                    &          dpsidt%expl(:,:,tscheme%istage))
-               call transp_r2m(r2m_fields, dVsOm_Rloc, dVsOm_Mloc)
-               runStop = MPI_Wtime()
-               if (runStop>runStart) then
-                  timers%mpi_comms=timers%mpi_comms+(runStop-runStart)
-               end if
+                   !--------------------
+                   !-- Finish assembling the explicit terms
+                   !--------------------
+                   runStart = MPI_Wtime()
+                   call finish_explicit_assembly(temp_Mloc, xi_Mloc, psi_Mloc,      &
+                        &                        us_Mloc, up_Mloc, om_Mloc,         &
+                        &                        dVsT_Mloc, dVsXi_Mloc, dVsOm_Mloc, &
+                        &                        buo_Mloc, dTdt, dxidt, dpsidt,     &
+                        &                        tscheme, vp_bal, vort_bal)
+                   runStop = MPI_Wtime()
+                   if (runStop>runStart) then
+                      timers%m_loop=timers%m_loop+(runStop-runStart)
+                   end if
+                end if
 
-               !--------------------
-               !-- Finish assembling the explicit terms
-               !--------------------
-               runStart = MPI_Wtime()
-               call finish_explicit_assembly(temp_Mloc, xi_Mloc, psi_Mloc,      &
-                    &                        us_Mloc, up_Mloc, om_Mloc,         &
-                    &                        dVsT_Mloc, dVsXi_Mloc, dVsOm_Mloc, &
-                    &                        buo_Mloc, dTdt, dxidt, dpsidt,     &
-                    &                        tscheme, vp_bal, vort_bal)
-               runStop = MPI_Wtime()
-               if (runStop>runStart) then
-                  timers%m_loop=timers%m_loop+(runStop-runStart)
-               end if
-            end if
+                if ( tscheme%istage == 1 ) then
 
-            if ( tscheme%istage == 1 ) then
+                   !-------------------
+                   !------ Checking Courant criteria, l_new_dt and dt_new are output
+                   !-------------------
+                   call dt_courant(dtr,dth,l_new_dt,tscheme%dt(1),dt_new,dtMax, &
+                        &          dtr_Rloc,dth_Rloc,time)
 
-               !-------------------
-               !------ Checking Courant criteria, l_new_dt and dt_new are output
-               !-------------------
-               call dt_courant(dtr,dth,l_new_dt,tscheme%dt(1),dt_new,dtMax, &
-                    &          dtr_Rloc,dth_Rloc,time)
+                   call tscheme%set_dt_array(dt_new,dtMin,time,n_log_file,n_time_step,&
+                        &                    l_new_dt)
+                   !-- Store the old weight factor of matrices
+                   !-- if it changes because of dt factors moving
+                   !-- matrix also needs to be rebuilt
+                   call tscheme%set_weights(lMatNext)
 
-               call tscheme%set_dt_array(dt_new,dtMin,time,n_log_file,n_time_step,&
-                    &                    l_new_dt)
-               !-- Store the old weight factor of matrices
-               !-- if it changes because of dt factors moving
-               !-- matrix also needs to be rebuilt
-               call tscheme%set_weights(lMatNext)
+                   !----- Advancing time:
+                   time=time+tscheme%dt(1) ! Update time
 
-               !----- Advancing time:
-               time=time+tscheme%dt(1) ! Update time
+                end if
 
-            end if
+                lMat=lMatNext
+                if ( (l_new_dt .or. lMat) .and. (tscheme%istage==1) ) then
+                   !----- Calculate matricies for new time step if dt /= dtLast
+                   lMat=.true.
+                   if ( Key_Pizza == 0 ) then
+                      write(*,'(1p,'' ! Building matricies at time step:'',   &
+                           &              i8,ES16.6)') n_time_step,time
+                   end if
+                end if
+                lMatNext = .false.
 
-            lMat=lMatNext
-            if ( (l_new_dt .or. lMat) .and. (tscheme%istage==1) ) then
-               !----- Calculate matricies for new time step if dt /= dtLast
-               lMat=.true.
-               if ( rank == 0 ) then
-                  write(*,'(1p,'' ! Building matricies at time step:'',   &
-                       &              i8,ES16.6)') n_time_step,time
-               end if
-            end if
-            lMatNext = .false.
+                !-- If the scheme is a multi-step scheme that is not Crank-Nicolson 
+                !-- we have to use a different starting scheme
+                call start_from_another_scheme(l_bridge_step,n_time_step, tscheme)
 
-            !-- If the scheme is a multi-step scheme that is not Crank-Nicolson 
-            !-- we have to use a different starting scheme
-            call start_from_another_scheme(l_bridge_step,n_time_step, tscheme)
+                !--------------------
+                !-- M-loop (update routines)
+                !--------------------
+                runStart = MPI_Wtime()
+                call mloop(temp_hat_Mloc, xi_hat_Mloc, temp_Mloc, dtemp_Mloc,   &
+                     &     xi_Mloc, dxi_Mloc, psi_hat_Mloc, psi_Mloc, om_Mloc,  &
+                     &     dom_Mloc, us_Mloc, up_Mloc, buo_Mloc, dTdt, dxidt,   &
+                     &     dpsidt, vp_bal, vort_bal, tscheme, lMat, l_log_next, &
+                     &     timers)
+                runStop = MPI_Wtime()
+                if ( .not. lMat ) then
+                   if (runStop>runStart) then
+                      timers%n_m_loops=timers%n_m_loops+1
+                      timers%m_loop   =timers%m_loop+(runStop-runStart)
+                   end if
+                else
+                   if (runStop>runStart) then
+                      timers%n_m_loops_mat=timers%n_m_loops_mat+1
+                      timers%m_loop_mat   =timers%m_loop_mat+(runStop-runStart)
+                   end if
+                end if
 
-            !--------------------
-            !-- M-loop (update routines)
-            !--------------------
-            runStart = MPI_Wtime()
-            call mloop(temp_hat_Mloc, xi_hat_Mloc, temp_Mloc, dtemp_Mloc,   &
-                 &     xi_Mloc, dxi_Mloc, psi_hat_Mloc, psi_Mloc, om_Mloc,  &
-                 &     dom_Mloc, us_Mloc, up_Mloc, buo_Mloc, dTdt, dxidt,   &
-                 &     dpsidt, vp_bal, vort_bal, tscheme, lMat, l_log_next, &
-                 &     timers)
-            runStop = MPI_Wtime()
-            if ( .not. lMat ) then
-               if (runStop>runStart) then
-                  timers%n_m_loops=timers%n_m_loops+1
-                  timers%m_loop   =timers%m_loop+(runStop-runStart)
-               end if
-            else
-               if (runStop>runStart) then
-                  timers%n_m_loops_mat=timers%n_m_loops_mat+1
-                  timers%m_loop_mat   =timers%m_loop_mat+(runStop-runStart)
-               end if
-            end if
+                ! Increment current stage
+                tscheme%istage = tscheme%istage+1
 
-            ! Increment current stage
-            tscheme%istage = tscheme%istage+1
+             end do ! Finish loop over stages
 
-         end do ! Finish loop over stages
+             !---------------------
+             !-- Timings
+             !---------------------
+             runStopT = MPI_Wtime()
+             if (runStopT>runStartT) then
+                timers%tot=timers%tot+(runStopT-runStartT)
+             end if
+             n_time_steps_go = n_time_steps_go+1
 
-         !---------------------
-         !-- Timings
-         !---------------------
-         runStopT = MPI_Wtime()
-         if (runStopT>runStartT) then
-            timers%tot=timers%tot+(runStopT-runStartT)
-         end if
-         n_time_steps_go = n_time_steps_go+1
+             !---------------------
+             !-- Info about run advance
+             !---------------------
+             run_time_passed=timers%tot
+             run_time_passed=run_time_passed/n_time_steps_go
+             if ( real(n_time_step,cp)+tenth_n_time_steps*real(nPercent,cp) >=  &
+                & real(n_time_steps,cp)  .or. n_time_steps < 31 ) then
+                write(message,'(" ! Time step finished:",i8)') n_time_step
+                call logWrite(message, n_log_file)
 
-         !---------------------
-         !-- Info about run advance
-         !---------------------
-         run_time_passed=timers%tot
-         run_time_passed=run_time_passed/n_time_steps_go
-         if ( real(n_time_step,cp)+tenth_n_time_steps*real(nPercent,cp) >=  &
-            & real(n_time_steps,cp)  .or. n_time_steps < 31 ) then
-            write(message,'(" ! Time step finished:",i8)') n_time_step
-            call logWrite(message, n_log_file)
+                if ( real(n_time_step,cp)+tenth_n_time_steps*real(nPercent,cp) >= &
+                   & real(n_time_steps,cp) .and. n_time_steps >= 10 ) then
+                   write(message,'(" ! This is           :",i3,"%")') (10-nPercent)*10
+                   call logWrite(message, n_log_file)
+                   nPercent=nPercent-1
+                end if
+               if ( Key_Pizza == 0 ) then
+                   call formatTime(6,' ! Mean wall time for time step:',  &
+                   &               run_time_passed)
+                   call formatTime(n_log_file,' ! Mean wall time for time step:', &
+                   &               run_time_passed)
+                end if
 
-            if ( real(n_time_step,cp)+tenth_n_time_steps*real(nPercent,cp) >= &
-               & real(n_time_steps,cp) .and. n_time_steps >= 10 ) then
-               write(message,'(" ! This is           :",i3,"%")') (10-nPercent)*10
-               call logWrite(message, n_log_file)
-               nPercent=nPercent-1
-            end if
-            if ( rank == 0 ) then
-               call formatTime(6,' ! Mean wall time for time step:',  &
-               &               run_time_passed)
-               call formatTime(n_log_file,' ! Mean wall time for time step:', &
-               &               run_time_passed)
-            end if
+             end if
 
-         end if
+          end do outer ! end of time stepping !
 
-      end do outer ! end of time stepping !
+          !-- Average timers over ranks and number of calls
+          call timers%finalize(n_time_steps_go)
 
-      !-- Average timers over ranks and number of calls
-      call timers%finalize(n_time_steps_go)
+          !-- Write timers info in log file  and on display
+          call timers%write_log(n_log_file)
+          call timers%write_log(6)
 
-      !-- Write timers info in log file  and on display
-      call timers%write_log(n_log_file)
-      call timers%write_log(6)
-
+      end if
    end subroutine time_loop
 !-------------------------------------------------------------------------------
    subroutine start_from_another_scheme(l_bridge_step, n_time_step, tscheme)
@@ -438,8 +447,10 @@ contains
       !-- Local variables:
       logical :: l_check_signal
 
+      
       tsig = tsig+run_time_passed
-      if ( rank == 0 ) then
+!       if ( rank == 0 ) then
+      if ( Key_Pizza == 0 ) then
          if ( tsig > 2.0_cp ) then ! Only check signals every second
             l_check_signal = .true.
             tsig = 0.0_cp
@@ -447,16 +458,17 @@ contains
             l_check_signal = .false.
          end if
       end if
-
-      call MPI_Bcast(l_check_signal,1,MPI_LOGICAL,0,MPI_COMM_WORLD,ierr)
-
+      
+         
+      call MPI_Bcast(l_check_signal,1,MPI_LOGICAL,0,Comm_Pizza,ierr)
+         
       if ( l_check_signal ) then
-         call MPI_Barrier(MPI_COMM_WORLD,ierr)
+         call MPI_Barrier(Comm_Pizza,ierr)
          call read_signal_file(signals)
       else
          signals(:) = 0
       end if
-
+         
    end subroutine check_signals
 !--------------------------------------------------------------------------------
 end module step_time

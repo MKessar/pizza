@@ -189,42 +189,50 @@ contains
       real(cp) :: enst_mean_global(n_m_max), enst_SD_global(n_m_max)
       real(cp) :: Temp2_mean_global(n_m_max), Temp2_SD_global(n_m_max)
       integer :: file_handle, n_m, m, n_p, n_r
-      integer :: displs(0:n_procs-1), recvcounts(0:n_procs-1)
+      integer :: displs(0:NProc_Pizza-1), recvcounts(0:NProc_Pizza-1)
+!       integer :: displs(0:n_procs-1), recvcounts(0:n_procs-1)
+      character(len=144) :: file_name
 
       !----------------
       !- First write the time-average m spectra
       !----------------
 
       !-- Finally gather everything on rank=0
-      do n_p=0,n_procs-1
+!       do n_p=0,n_procs-1
+      do n_p=0,NProc_Pizza-1
+      
          recvcounts(n_p)=m_balance(n_p)%n_per_rank
       end do
       displs(0)=0
-      do n_p=1,n_procs-1
+!       do n_p=1,n_procs-1
+      do n_p=1,NProc_Pizza-1
          displs(n_p)=displs(n_p-1)+recvcounts(n_p-1)
       end do
       call MPI_GatherV(this%us2M%mean, nm_per_rank, MPI_DEF_REAL,  &
            &           us2_mean_global, recvcounts, displs,        &
-           &           MPI_DEF_REAL, 0, MPI_COMM_WORLD, ierr)
+           &           MPI_DEF_REAL, 0, Comm_Pizza, ierr)
       call MPI_GatherV(this%us2M%SD, nm_per_rank, MPI_DEF_REAL,    &
            &           us2_SD_global, recvcounts, displs,          &
-           &           MPI_DEF_REAL, 0, MPI_COMM_WORLD, ierr)
+           &           MPI_DEF_REAL, 0, Comm_Pizza, ierr)
       call MPI_GatherV(this%up2M%mean, nm_per_rank, MPI_DEF_REAL,  &
            &           up2_mean_global, recvcounts, displs,        &
-           &           MPI_DEF_REAL, 0, MPI_COMM_WORLD, ierr)
+           &           MPI_DEF_REAL, 0, Comm_Pizza, ierr)
       call MPI_GatherV(this%up2M%SD, nm_per_rank, MPI_DEF_REAL,    &
            &           up2_SD_global, recvcounts, displs,          &
-           &           MPI_DEF_REAL, 0, MPI_COMM_WORLD, ierr)
+           &           MPI_DEF_REAL, 0, Comm_Pizza, ierr)
       call MPI_GatherV(this%enstM%mean, nm_per_rank, MPI_DEF_REAL, &
            &           enst_mean_global, recvcounts, displs,       &
-           &           MPI_DEF_REAL, 0, MPI_COMM_WORLD, ierr)
+           &           MPI_DEF_REAL, 0, Comm_Pizza, ierr)
       call MPI_GatherV(this%Temp2M%SD, nm_per_rank, MPI_DEF_REAL,   &
            &           Temp2_mean_global, recvcounts, displs,         &
-           &           MPI_DEF_REAL, 0, MPI_COMM_WORLD, ierr)
+           &           MPI_DEF_REAL, 0, Comm_Pizza, ierr)
 
       !-- Only rank==0 writes the spec_avg.TAG file
-      if ( rank == 0 ) then
-         open(newunit=file_handle, file='spec_avg.'//tag)
+      if ( Key_Pizza == 0 ) then
+         write(file_name, '(A,I0,A,A)') 'spec_avg_TimeProc_',Color_Pizza,'.',tag
+
+!          open(newunit=file_handle, file='spec_avg.'//tag)
+         open(newunit=file_handle, file=file_name)
          do n_m=1,n_m_max
             m = idx2m(n_m)
             us2_SD_global(n_m) =sqrt(us2_SD_global(n_m)/this%timeLast)
@@ -286,32 +294,36 @@ contains
       real(cp) :: us2_m_global(n_m_max), up2_m_global(n_m_max)
       real(cp) :: enst_m_global(n_m_max),Temp2_m_global(n_m_max)
       integer :: n_p, m, n_m
-      integer :: displs(0:n_procs-1), recvcounts(0:n_procs-1)
+!       integer :: displs(0:n_procs-1), recvcounts(0:n_procs-1)
+      integer :: displs(0:NProc_Pizza-1), recvcounts(0:NProc_Pizza-1)
       character(len=144) :: spec_name
       integer :: file_handle
 
-      do n_p=0,n_procs-1
+!       do n_p=0,n_procs-1
+      do n_p=0,NProc_Pizza-1
          recvcounts(n_p)=m_balance(n_p)%n_per_rank
       end do
       displs(0)=0
-      do n_p=1,n_procs-1
+!       do n_p=1,n_procs-1
+      do n_p=1,NProc_Pizza-1
          displs(n_p)=displs(n_p-1)+recvcounts(n_p-1)
       end do
       call MPI_GatherV(us2_m, nm_per_rank, MPI_DEF_REAL,        &
            &           us2_m_global, recvcounts, displs,        &
-           &           MPI_DEF_REAL, 0, MPI_COMM_WORLD, ierr)
+           &           MPI_DEF_REAL, 0, Comm_Pizza, ierr)
       call MPI_GatherV(up2_m, nm_per_rank, MPI_DEF_REAL,        &
            &           up2_m_global, recvcounts, displs,        &
-           &           MPI_DEF_REAL, 0, MPI_COMM_WORLD, ierr)
+           &           MPI_DEF_REAL, 0, Comm_Pizza, ierr)
       call MPI_GatherV(enst_m, nm_per_rank, MPI_DEF_REAL,       &
            &           enst_m_global, recvcounts, displs,       &
-           &           MPI_DEF_REAL, 0, MPI_COMM_WORLD, ierr)
+           &           MPI_DEF_REAL, 0, Comm_Pizza, ierr)
       call MPI_GatherV(Temp2_m, nm_per_rank, MPI_DEF_REAL,       &
            &           Temp2_m_global, recvcounts, displs,       &
-           &           MPI_DEF_REAL, 0, MPI_COMM_WORLD, ierr)
+           &           MPI_DEF_REAL, 0, Comm_Pizza, ierr)
 
-      if ( rank == 0 ) then
-         write(spec_name, '(A,I0,A,A)') 'spec_',this%ispec_counter,'.',tag
+      if ( Key_Pizza == 0 ) then
+         write(spec_name, '(A,I0,A,I0,A,A)') 'spec_',this%ispec_counter,'TimeProc_',Color_Pizza,'.',tag
+!          write(file_name, '(A,I0,A,A)') 'spec_avg_TimeProc_',Color_Pizza,'.',tag
 
          open(newunit=file_handle, file=spec_name, position='append')
          do n_m=1,n_m_max
@@ -369,11 +381,11 @@ contains
       call MPI_Info_set(info,"cb_buffer_size","4194304", ierr)
 
       !-- Open file
-      call MPI_File_Open(MPI_COMM_WORLD, spec_file, ior(MPI_MODE_WRONLY, &
+      call MPI_File_Open(Comm_Pizza, spec_file, ior(MPI_MODE_WRONLY, &
            &             MPI_MODE_CREATE), info, fh, ierr)
 
       !-- Only rank=0 writes the header of the file
-      if ( rank == 0 ) then
+      if ( Key_Pizza == 0 ) then
          call MPI_File_Write(fh, version, 1, MPI_INTEGER, istat, ierr)
          call MPI_File_Write(fh, ra, 1, MPI_DEF_REAL, istat, ierr)
          call MPI_File_Write(fh, pr, 1, MPI_DEF_REAL, istat, ierr)
