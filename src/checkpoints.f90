@@ -94,11 +94,11 @@ contains
       call MPI_Info_set(info,"cb_buffer_size","4194304", ierr)
 
       !-- Open file
-      call MPI_File_Open(MPI_COMM_WORLD, rst_file, ior(MPI_MODE_WRONLY, &
+      call MPI_File_Open(Comm_Pizza, rst_file, ior(MPI_MODE_WRONLY, &
            &             MPI_MODE_CREATE), info, fh, ierr)
 
       !-- Only rank=0 writes the header of the file
-      if ( rank == 0 ) then
+      if ( Key_pizza == 0 ) then
          call MPI_File_Write(fh, version, 1, MPI_INTEGER, istat, ierr)
          call MPI_File_Write(fh, time, 1, MPI_DEF_REAL, istat, ierr)
          call MPI_File_Write(fh, l_cheb_coll, 1, MPI_LOGICAL, istat, ierr)
@@ -219,7 +219,7 @@ contains
       call MPI_File_close(fh, ierr)
 
       !-- Close checkpoint file and display a message in the log file
-      if ( rank == 0 ) then
+      if ( Key_pizza == 0 ) then
 
          write(*,'(/,1P,A,/,A,ES20.10,/,A,I15,/,A,A)')&
          &    " ! Storing checkpoint file:",          &
@@ -267,7 +267,7 @@ contains
       logical :: l_coll_old
       real(cp), allocatable :: dt_array_old(:)
 
-      if ( rank == 0 ) then
+      if ( Key_pizza == 0 ) then
          inquire(file=start_file, exist=startfile_does_exist)
 
          if ( startfile_does_exist ) then
@@ -399,24 +399,24 @@ contains
          allocate( r_old(1), work_old(1,1), work(1,1), m2idx_old(1) )
       end if
 
-      call MPI_Barrier(MPI_COMM_WORLD, ierr)
-      call MPI_Bcast(time,1,MPI_DEF_REAL,0,MPI_COMM_WORLD,ierr)
-      call MPI_Bcast(version,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
-      call MPI_Bcast(norder_exp_old,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
-      call MPI_Bcast(norder_imp_old,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
-      call MPI_Bcast(norder_imp_lin_old,1,MPI_INTEGER,0,MPI_COMM_WORLD,ierr)
+      call MPI_Barrier(Comm_Pizza, ierr)
+      call MPI_Bcast(time,1,MPI_DEF_REAL,0,Comm_Pizza,ierr)
+      call MPI_Bcast(version,1,MPI_INTEGER,0,Comm_Pizza,ierr)
+      call MPI_Bcast(norder_exp_old,1,MPI_INTEGER,0,Comm_Pizza,ierr)
+      call MPI_Bcast(norder_imp_old,1,MPI_INTEGER,0,Comm_Pizza,ierr)
+      call MPI_Bcast(norder_imp_lin_old,1,MPI_INTEGER,0,Comm_Pizza,ierr)
       call MPI_Bcast(tscheme_family_old,len(tscheme_family_old),MPI_CHARACTER,0, &
-           &         MPI_COMM_WORLD,ierr)
+           &         Comm_Pizza,ierr)
       if ( tscheme_family_old == 'MULTISTEP' ) then
          if ( rank /= 0 ) allocate( dt_array_old(max(norder_exp_old,tscheme%norder_exp)) )
       else if ( tscheme_family_old == 'DIRK' ) then
          if ( rank /= 0 ) allocate( dt_array_old(max(1,size(tscheme%dt))) )
       end if
-      call MPI_Bcast(dt_array_old,size(dt_array_old),MPI_DEF_REAL,0,MPI_COMM_WORLD,ierr)
-      call MPI_Bcast(ek_old,1,MPI_DEF_REAL,0,MPI_COMM_WORLD,ierr)
-      call MPI_Bcast(l_heat_old,1,MPI_LOGICAL,0,MPI_COMM_WORLD,ierr)
-      call MPI_Bcast(l_chem_old,1,MPI_LOGICAL,0,MPI_COMM_WORLD,ierr)
-      call MPI_Bcast(l_coll_old,1,MPI_LOGICAL,0,MPI_COMM_WORLD,ierr)
+      call MPI_Bcast(dt_array_old,size(dt_array_old),MPI_DEF_REAL,0,Comm_Pizza,ierr)
+      call MPI_Bcast(ek_old,1,MPI_DEF_REAL,0,Comm_Pizza,ierr)
+      call MPI_Bcast(l_heat_old,1,MPI_LOGICAL,0,Comm_Pizza,ierr)
+      call MPI_Bcast(l_chem_old,1,MPI_LOGICAL,0,Comm_Pizza,ierr)
+      call MPI_Bcast(l_coll_old,1,MPI_LOGICAL,0,Comm_Pizza,ierr)
 
       !-- Fill the time step array
       do n_o=1,size(tscheme%dt)
@@ -469,7 +469,7 @@ contains
       !-- Read fields with rank0 and scatter them
 
       !-- us
-      if ( rank == 0 ) then
+      if ( Key_pizza == 0 ) then
          read( n_start_file ) work_old
          call map_field(work_old, work, r_old, m2idx_old, scale_u,  &
               &         n_m_max_old, n_r_max_old, n_r_max_max,      &
@@ -478,7 +478,7 @@ contains
       call scatter_from_rank0_to_mloc(work, us_Mloc)
 
       !-- uphi
-      if ( rank == 0 ) then
+      if ( Key_pizza == 0 ) then
          read( n_start_file ) work_old
          call map_field(work_old, work, r_old, m2idx_old, scale_u, &
               &         n_m_max_old, n_r_max_old, n_r_max_max,     &
@@ -489,7 +489,7 @@ contains
       if ( tscheme_family_old == 'MULTISTEP' ) then
          !-- Explicit time step
          do n_o=2,norder_exp_old
-            if ( rank == 0 ) then
+            if ( Key_pizza == 0 ) then
                read( n_start_file ) work_old
                call map_field(work_old, work, r_old, m2idx_old, scale_u, &
                     &         n_m_max_old, n_r_max_old, n_r_max_max,     &
@@ -502,7 +502,7 @@ contains
 
          !-- Implicit time step
          do n_o=2,norder_imp_lin_old-1
-            if ( rank == 0 ) then
+            if ( Key_pizza == 0 ) then
                read( n_start_file ) work_old
                call map_field(work_old, work, r_old, m2idx_old, scale_u, &
                     &         n_m_max_old, n_r_max_old, n_r_max_max,     &
@@ -514,7 +514,7 @@ contains
          end do
          if ( version > 3 ) then
             do n_o=2,norder_imp_old-1
-               if ( rank == 0 ) then
+               if ( Key_pizza == 0 ) then
                   read( n_start_file ) work_old
                   call map_field(work_old, work, r_old, m2idx_old, scale_u, &
                        &         n_m_max_old, n_r_max_old, n_r_max_max,     &
@@ -529,7 +529,7 @@ contains
 
       if ( l_heat_old ) then
          !-- Temperature
-         if ( rank == 0 ) then
+         if ( Key_pizza == 0 ) then
             read( n_start_file ) work_old
             call map_field(work_old, work, r_old, m2idx_old, scale_t, &
                  &         n_m_max_old, n_r_max_old, n_r_max_max,     &
@@ -540,7 +540,7 @@ contains
          if ( tscheme_family_old == 'MULTISTEP' ) then
             !-- Explicit time step
             do n_o=2,norder_exp_old
-               if ( rank == 0 ) then
+               if ( Key_pizza == 0 ) then
                   read( n_start_file ) work_old
                   call map_field(work_old, work, r_old, m2idx_old, scale_t, &
                        &         n_m_max_old, n_r_max_old, n_r_max_max,     &
@@ -553,7 +553,7 @@ contains
 
             !-- Implicit time step
             do n_o=2,norder_imp_lin_old-1
-               if ( rank == 0 ) then
+               if ( Key_pizza == 0 ) then
                   read( n_start_file ) work_old
                   call map_field(work_old, work, r_old, m2idx_old, scale_t, &
                        &         n_m_max_old, n_r_max_old, n_r_max_max,     &
@@ -565,7 +565,7 @@ contains
             end do
             if ( version > 3 ) then
                do n_o=2,norder_imp_old-1
-                  if ( rank == 0 ) then
+                  if ( Key_pizza == 0 ) then
                      read( n_start_file ) work_old
                      call map_field(work_old, work, r_old, m2idx_old, scale_t, &
                           &         n_m_max_old, n_r_max_old, n_r_max_max,     &
@@ -582,7 +582,7 @@ contains
 
       if ( l_chem_old ) then
          !-- Chemical composition
-         if ( rank == 0 ) then
+         if ( Key_pizza == 0 ) then
             read( n_start_file ) work_old
             call map_field(work_old, work, r_old, m2idx_old, scale_xi, &
                  &         n_m_max_old, n_r_max_old, n_r_max_max,      &
@@ -593,7 +593,7 @@ contains
          if ( tscheme_family_old == 'MULTISTEP' ) then
             !-- Explicit time step
             do n_o=2,norder_exp_old
-               if ( rank == 0 ) then
+               if ( Key_pizza == 0 ) then
                   read( n_start_file ) work_old
                   call map_field(work_old, work, r_old, m2idx_old, scale_xi, &
                        &         n_m_max_old, n_r_max_old, n_r_max_max,      &
@@ -606,7 +606,7 @@ contains
 
             !-- Implicit time step
             do n_o=2,norder_imp_lin_old-1
-               if ( rank == 0 ) then
+               if ( Key_pizza == 0 ) then
                   read( n_start_file ) work_old
                   call map_field(work_old, work, r_old, m2idx_old, scale_xi, &
                        &         n_m_max_old, n_r_max_old, n_r_max_max,      &
@@ -618,7 +618,7 @@ contains
             end do
             if ( version > 3 ) then
                do n_o=2,norder_imp_old-1
-                  if ( rank == 0 ) then
+                  if ( Key_pizza == 0 ) then
                      read( n_start_file ) work_old
                      call map_field(work_old, work, r_old, m2idx_old, scale_xi, &
                           &         n_m_max_old, n_r_max_old, n_r_max_max,      &
@@ -633,7 +633,7 @@ contains
 
       end if
 
-      if ( rank == 0 ) then
+      if ( Key_pizza == 0 ) then
          call rscheme_old%finalize(no_work_array=.true.)
       end if
       deallocate( r_old, work_old, work, m2idx_old )

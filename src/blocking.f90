@@ -3,7 +3,7 @@ module blocking
    use precision_mod
    use mem_alloc, only: bytes_allocated
    use truncation, only: n_r_max, n_m_max, m2idx
-   use parallel_mod, only: n_procs, rank
+   use parallel_mod!, only: NProc_Pizza, rank
 
    implicit none
 
@@ -31,19 +31,19 @@ contains
 
       integer :: idx
 
-      allocate ( radial_balance(0:n_procs-1) )
-      allocate ( m_balance(0:n_procs-1) )
+      allocate ( radial_balance(0:NProc_Pizza-1) )
+      allocate ( m_balance(0:NProc_Pizza-1) )
 
-      call getBlocks(radial_balance, n_r_max, n_procs)
-      nRstart = radial_balance(rank)%nStart
-      nRstop = radial_balance(rank)%nStop
-      nR_per_rank = radial_balance(rank)%n_per_rank
-      call getBlocks(m_balance, n_m_max, n_procs)
-      nMstart = m_balance(rank)%nStart
-      nMstop = m_balance(rank)%nStop
-      nm_per_rank = m_balance(rank)%n_per_rank
+      call getBlocks(radial_balance, n_r_max, NProc_Pizza)
+      nRstart = radial_balance(Key_Pizza)%nStart
+      nRstop = radial_balance(Key_Pizza)%nStop
+      nR_per_rank = radial_balance(Key_Pizza)%n_per_rank
+      call getBlocks(m_balance, n_m_max, NProc_Pizza)
+      nMstart = m_balance(Key_Pizza)%nStart
+      nMstop = m_balance(Key_Pizza)%nStop
+      nm_per_rank = m_balance(Key_Pizza)%n_per_rank
 
-      bytes_allocated = bytes_allocated+8*n_procs*SIZEOF_INTEGER
+      bytes_allocated = bytes_allocated+8*NProc_Pizza*SIZEOF_INTEGER
 
       idx = m2idx(0)
 
@@ -61,21 +61,21 @@ contains
 
    end subroutine destroy_mpi_domains
 !------------------------------------------------------------------------------
-   subroutine getBlocks(bal, n_points, n_procs)
+   subroutine getBlocks(bal, n_points, NProc_Pizza)
 
       type(load), intent(inout) :: bal(0:)
-      integer, intent(in) :: n_procs
+      integer, intent(in) :: NProc_Pizza
       integer, intent(in) :: n_points
 
       integer :: n_points_loc, check, p
       
-      n_points_loc = n_points/n_procs
+      n_points_loc = n_points/NProc_Pizza
 
-      check = mod(n_points,n_procs)-1
+      check = mod(n_points,NProc_Pizza)-1
 
       bal(0)%nStart = 1
 
-      do p =0, n_procs-1
+      do p =0, NProc_Pizza-1
          if ( p /= 0 ) bal(p)%nStart=bal(p-1)%nStop+1
          bal(p)%n_per_rank=n_points_loc
          if ( p <= check ) then

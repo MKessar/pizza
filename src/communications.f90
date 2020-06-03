@@ -1,11 +1,11 @@
 module communications
 
-   use mpimod
+!    use mpimod
    use precision_mod
    use blocking
    use mem_alloc, only: bytes_allocated
    use truncation, only: n_r_max, n_m_max
-   use parallel_mod, only: n_procs, rank, ierr
+   use parallel_mod!, only: NProc_Pizza, rank, ierr
 
    implicit none
 
@@ -50,17 +50,17 @@ contains
       type(help_transp) :: self
       integer :: p
 
-      allocate ( self%rcounts(0:n_procs-1), self%scounts(0:n_procs-1) )
-      allocate ( self%rdisp(0:n_procs-1), self%sdisp(0:n_procs-1) )
+      allocate ( self%rcounts(0:NProc_Pizza-1), self%scounts(0:NProc_Pizza-1) )
+      allocate ( self%rdisp(0:NProc_Pizza-1), self%sdisp(0:NProc_Pizza-1) )
 
-      do p=0,n_procs-1
+      do p=0,NProc_Pizza-1
          self%scounts(p)=nR_per_rank*m_balance(p)%n_per_rank
          self%rcounts(p)=radial_balance(p)%n_per_rank*nm_per_rank
       end do
 
       self%rdisp(0)=0
       self%sdisp(0)=0
-      do p=1,n_procs-1
+      do p=1,NProc_Pizza-1
          self%sdisp(p)=self%sdisp(p-1)+self%scounts(p-1)
          self%rdisp(p)=self%rdisp(p-1)+self%rcounts(p-1)
       end do
@@ -68,7 +68,7 @@ contains
       self%max_send = sum(self%scounts)
       self%max_recv = sum(self%rcounts)
 
-      bytes_allocated = bytes_allocated+4*n_procs*SIZEOF_INTEGER
+      bytes_allocated = bytes_allocated+4*NProc_Pizza*SIZEOF_INTEGER
 
       allocate( self%sbuff(1:self%max_send) )
       allocate( self%rbuff(1:self%max_recv) )
@@ -93,17 +93,17 @@ contains
       type(help_transp) :: self
       integer :: p
 
-      allocate ( self%rcounts(0:n_procs-1), self%scounts(0:n_procs-1) )
-      allocate ( self%rdisp(0:n_procs-1), self%sdisp(0:n_procs-1) )
+      allocate ( self%rcounts(0:NProc_Pizza-1), self%scounts(0:NProc_Pizza-1) )
+      allocate ( self%rdisp(0:NProc_Pizza-1), self%sdisp(0:NProc_Pizza-1) )
 
-      do p=0,n_procs-1
+      do p=0,NProc_Pizza-1
          self%scounts(p)=radial_balance(p)%n_per_rank*nm_per_rank
          self%rcounts(p)=nR_per_rank*m_balance(p)%n_per_rank
       end do
 
       self%rdisp(0)=0
       self%sdisp(0)=0
-      do p=1,n_procs-1
+      do p=1,NProc_Pizza-1
          self%sdisp(p)=self%sdisp(p-1)+self%scounts(p-1)
          self%rdisp(p)=self%rdisp(p-1)+self%rcounts(p-1)
       end do
@@ -111,7 +111,7 @@ contains
       self%max_send = sum(self%scounts)
       self%max_recv = sum(self%rcounts)
 
-      bytes_allocated = bytes_allocated+4*n_procs*SIZEOF_INTEGER
+      bytes_allocated = bytes_allocated+4*NProc_Pizza*SIZEOF_INTEGER
 
       allocate( self%sbuff(1:self%max_send) )
       allocate( self%rbuff(1:self%max_recv) )
@@ -130,7 +130,8 @@ contains
       !-- Local variables
       integer :: p, ii, n_r, n_m
 
-      do p = 0, n_procs-1
+   
+      do p = 0, NProc_Pizza-1
          ii = self%sdisp(p)+1
          do n_r=nRstart,nRstop
             do n_m=m_balance(p)%nStart,m_balance(p)%nStop
@@ -140,11 +141,13 @@ contains
          end do
       end do
 
+   
       call MPI_Alltoallv(self%sbuff, self%scounts, self%sdisp, MPI_DEF_COMPLEX, &
            &             self%rbuff, self%rcounts, self%rdisp, MPI_DEF_COMPLEX, &
-           &             MPI_COMM_WORLD, ierr) 
+           &             Comm_Pizza, ierr) 
 
-      do p = 0, n_procs-1
+ 
+      do p = 0, NProc_Pizza-1
          ii = self%rdisp(p)+1
          do n_r=radial_balance(p)%nStart,radial_balance(p)%nStop
             do n_m=nMstart,nMstop
@@ -168,7 +171,7 @@ contains
       !-- Local variables
       integer :: p, ii, n_r, n_m
 
-      do p = 0, n_procs-1
+      do p = 0, NProc_Pizza-1
          ii = self%sdisp(p)+1
          do n_r=radial_balance(p)%nStart,radial_balance(p)%nStop
             do n_m=nMstart,nMstop
@@ -180,9 +183,9 @@ contains
 
       call MPI_Alltoallv(self%sbuff, self%scounts, self%sdisp, MPI_DEF_COMPLEX, &
            &             self%rbuff, self%rcounts, self%rdisp, MPI_DEF_COMPLEX, &
-           &             MPI_COMM_WORLD, ierr) 
+           &             Comm_Pizza, ierr) 
 
-      do p = 0, n_procs-1
+      do p = 0, NProc_Pizza-1
          ii = self%rdisp(p)+1
          do n_r=nRstart,nRstop
             do n_m=m_balance(p)%nStart,m_balance(p)%nStop
@@ -209,14 +212,14 @@ contains
       integer ::p, ii, n_r, n_m
 
       allocate( rbuff(n_m_max*n_r_max), sbuff(nm_per_rank*n_r_max) )
-      allocate ( rcounts(0:n_procs-1), rdisp(0:n_procs-1) )
+      allocate ( rcounts(0:NProc_Pizza-1), rdisp(0:NProc_Pizza-1) )
 
-      do p=0,n_procs-1
+      do p=0,NProc_Pizza-1
          rcounts(p)=n_r_max*m_balance(p)%n_per_rank
       end do
 
       rdisp(0)=0
-      do p=1,n_procs-1
+      do p=1,NProc_Pizza-1
          rdisp(p)=rdisp(p-1)+rcounts(p-1)
       end do
 
@@ -230,10 +233,10 @@ contains
 
       call MPI_Gatherv(sbuff, nm_per_rank*n_r_max, MPI_DEF_COMPLEX, &
            &           rbuff, rcounts, rdisp, MPI_DEF_COMPLEX, 0,   &
-           &           MPI_COMM_WORLD, ierr)
+           &           Comm_Pizza, ierr)
 
-      if ( rank == 0 ) then
-         do p = 0, n_procs-1
+      if ( Key_Pizza == 0 ) then
+         do p = 0, NProc_Pizza-1
             ii = rdisp(p)+1
             do n_r=1,n_r_max
                do n_m=m_balance(p)%nStart,m_balance(p)%nStop
@@ -263,19 +266,19 @@ contains
       integer :: p, ii, n_r, n_m
 
       allocate( rbuff(nm_per_rank*n_r_max), sbuff(n_m_max*n_r_max) )
-      allocate ( scounts(0:n_procs-1), sdisp(0:n_procs-1) )
+      allocate ( scounts(0:NProc_Pizza-1), sdisp(0:NProc_Pizza-1) )
 
-      do p=0,n_procs-1
+      do p=0,NProc_Pizza-1
          scounts(p)=n_r_max*m_balance(p)%n_per_rank
       end do
 
       sdisp(0)=0
-      do p=1,n_procs-1
+      do p=1,NProc_Pizza-1
          sdisp(p)=sdisp(p-1)+scounts(p-1)
       end do
 
-      if ( rank == 0 ) then
-         do p = 0, n_procs-1
+      if ( Key_Pizza == 0 ) then
+         do p = 0, NProc_Pizza-1
             ii = sdisp(p)+1
             do n_r=1,n_r_max
                do n_m=m_balance(p)%nStart,m_balance(p)%nStop
@@ -288,7 +291,7 @@ contains
 
       call MPI_Scatterv(sbuff, scounts, sdisp, MPI_DEF_COMPLEX,         &
            &            rbuff, nm_per_rank*n_r_max, MPI_DEF_COMPLEX, 0, &
-           &            MPI_COMM_WORLD, ierr)
+           &            Comm_Pizza, ierr)
 
       ii = 1
       do n_r=1,n_r_max
@@ -313,9 +316,9 @@ contains
       real(cp) :: work(n_r_max)
 
       call MPI_Reduce(arr_dist, work, n_r_max, MPI_DEF_REAL, &
-           &          MPI_SUM, irank, MPI_COMM_WORLD, ierr)
+           &          MPI_SUM, irank, Comm_Pizza, ierr)
 
-      if ( rank == irank ) then
+      if ( Key_Pizza == irank ) then
          do n_r=1,n_r_max
             arr_dist(n_r) = work(n_r)
          end do
@@ -335,9 +338,9 @@ contains
       real(cp) :: tmp
 
       call MPI_Reduce(scalar, tmp, 1, MPI_DEF_REAL, MPI_SUM, &
-           &          irank, MPI_COMM_WORLD, ierr)
+           &          irank, Comm_Pizza, ierr)
 
-      if ( rank == irank ) scalar = tmp/real(n_procs,cp)
+      if ( Key_Pizza == irank ) scalar = tmp/real(NProc_Pizza,cp)
 
    end subroutine my_reduce_mean
 !------------------------------------------------------------------------------
@@ -359,7 +362,7 @@ contains
       idx(1) = maxval(arr)
       idx(2) = nMstart-1+idx(2)
       call MPI_AllReduce(idx, tmp, 1, MPI_2DOUBLE_PRECISION, MPI_MAXLOC, &
-           &             MPI_COMM_WORLD, ierr)
+           &             Comm_Pizza, ierr)
       ind = int(tmp(2))
 
    end function my_allreduce_maxloc

@@ -25,9 +25,11 @@ contains
       !-- Input variables
       real(cp), intent(in) :: time ! time
       real(cp), intent(in) :: dt   ! timestep
+      character(len=144) :: file_name
 
-      if ( rank == 0 ) then
-         open(newunit=file_handle, file='timestep.'//tag, status='new')
+      if ( Key_Pizza == 0 ) then
+         write(file_name, '(A,I0,A,A)') 'timestep_TimeProc_',Color_Pizza,'.',tag
+         open(newunit=file_handle, file=file_name, status='new')
          write(file_handle, '(1p, es20.12, es16.8)')  time, dt
       end if
 
@@ -35,7 +37,7 @@ contains
 !------------------------------------------------------------------------------
    subroutine finalize_courant()
 
-      if ( rank == 0 ) close(file_handle)
+      if ( Key_Pizza == 0 ) close(file_handle)
 
    end subroutine finalize_courant
 !------------------------------------------------------------------------------
@@ -128,9 +130,9 @@ contains
       end do
 
       call MPI_Allreduce(MPI_IN_PLACE,dt_r,1,MPI_DEF_REAL, &
-           &             MPI_MIN,MPI_COMM_WORLD,ierr)
+           &             MPI_MIN,Comm_Pizza,ierr)
       call MPI_Allreduce(MPI_IN_PLACE,dt_h,1,MPI_DEF_REAL, &
-           &             MPI_MIN,MPI_COMM_WORLD,ierr)
+           &             MPI_MIN,Comm_Pizza,ierr)
 
       dt_rh=min(dt_r,dt_h)
       dt_2 =min(half*(one/dt_fac+one)*dt_rh,dtMax)
@@ -150,7 +152,7 @@ contains
          write(message,'(1P," ! COURANT: dt=",ES11.4," > dt_r=",ES12.4, &
               &       " and dt_h=",ES12.4)') dt,dt_r,dt_h
          call logWrite(message,n_log_file)
-         if ( rank == 0 ) then
+         if ( Key_Pizza == 0 ) then
             write(file_handle, '(1p, es20.12, es16.8)')  time, dt_new
          end if
     
@@ -162,7 +164,7 @@ contains
               &     " < dt_r=",ES12.4," and dt_h=",ES12.4)') &
               &     dt_fac,dt_fac*dt,dt_r,dt_h
          call logWrite(message,n_log_file)
-         if ( rank == 0 ) then
+         if ( Key_Pizza == 0 ) then
             write(file_handle, '(1p, es20.12, es16.8)')  time, dt_new
          end if
 
