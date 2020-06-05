@@ -449,7 +449,7 @@ contains
       !-- Local:
       integer :: n_r,od
       logical :: l_dct_loc
-print*,"get_dr_real_1d"
+
       if ( present(l_dct) ) then
          l_dct_loc=l_dct
       else

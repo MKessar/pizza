@@ -7,7 +7,9 @@ module hooks
 !   use pf_mod_zndarray
   use pizza_zdnarray
   use pf_mod_utils
+  
   implicit none
+  integer :: frame_counter
 contains
 
   !>  Output the error and residual in the solution
@@ -37,7 +39,7 @@ contains
   
  subroutine time_series(pf, level_index)
 !     use pf_my_sweeper, only: exact
-    use namelists, only: imex_stat, n_modes_m,n_points_phi,n_points_r
+    use namelists, only: imex_stat, n_modes_m,n_points_phi,n_points_r,n_frame_step
     use communications, only: reduce_radial_on_rank
     use useful, only: round_off, cc2real, cc22real, getMSD2, abortRun
     use integration, only: rInt_R
@@ -45,11 +47,14 @@ contains
     use truncation, only: idx2m
     use parallel_mod
     use blocking, only: nMstart, nMstop!,nRstart, nRstop
+   use output_frames, only: write_snapshot_mloc
 
     type(pf_pfasst_t), intent(inout) :: pf
     integer, intent(in) :: level_index
 
     complex(pfdp), pointer :: y_end(:,:)!,y_ex(:,:)
+    complex(pfdp), allocatable      :: Temp_Mloc(:,:)
+
 !     real(pfdp) :: maxerr
 !     type(pf_zndarray_t), target :: y_exact      !<  the initial condition
     real(pfdp) :: E_temp_radial(n_points_r(level_index))
@@ -58,7 +63,9 @@ contains
     character(len=144) :: file_name
     integer :: n_temp_file_2D
     integer ::  ierror
-    
+    character(len=144) :: frame_name
+    allocate(Temp_Mloc(nMstart:nMstop,n_points_r(level_index)))
+
     y_end => get_array2d(pf%levels(level_index)%qend)
 !     print*,"0 Key_Pizza =",Key_Pizza ,"pf%state%step+1=",pf%state%step+1, "pf%state%iter=",pf%state%iter
 
@@ -81,7 +88,7 @@ contains
 
     call mpi_barrier(Comm_Pizza, ierror)
 
-    print*,"b Key_Pizza =",Key_Pizza ,"pf%state%step+1=",pf%state%step+1, "pf%state%iter=",pf%state%iter," res: ",pf%levels(level_index)%residual
+!     print*,"b Key_Pizza =",Key_Pizza ,"pf%state%step+1=",pf%state%step+1, "pf%state%iter=",pf%state%iter," res: ",pf%levels(level_index)%residual
        if ( Key_Pizza == 0 ) then
 ! 
             E_temp=rInt_R(E_temp_radial, r, rscheme)
@@ -98,10 +105,22 @@ contains
 !      &    pf%state%step+1, pf%state%iter,level_index, pf%levels(level_index)%residual
 !     
     endif
-     
+
+    if (pf%state%step.EQ.0) then
+    frame_counter=1
+    endif 
+
+    if ( mod(pf%state%step+1,n_frame_step) == 0 )  then
+!        write(frame_name, '(A,I0,A,I0,A,A)') 'frame_temp_',frame_counter,'TimeProc_',Color_Pizza,'.test'
+       write(frame_name, '(A,I0,A,I0,A,A)') 'frame_temp_',frame_counter,'.test'
+       call write_snapshot_mloc(frame_name, pf%state%t0+pf%state%dt, temp_Mloc)     
+       frame_counter= frame_counter +1
+    endif
+    
+    
+    deallocate(Temp_Mloc)
 !     print '("time_series: step: ",i6.3," iter: ",i4.3," level: ",i2.2," error: ",es14.7," res: ",es14.7)', &
 !      &    pf%state%step+1, pf%state%iter,level_index, maxerr,pf%levels(level_index)%residual
 !     call flush(6)
-!     call zndarray_destroy(y_exact)    
   end subroutine time_series
 end module hooks
