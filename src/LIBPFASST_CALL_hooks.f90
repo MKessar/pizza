@@ -64,6 +64,7 @@ contains
     integer :: n_temp_file_2D
     integer ::  ierror
     character(len=144) :: frame_name
+    integer :: step,mod_step
     allocate(Temp_Mloc(nMstart:nMstop,n_points_r(level_index)))
 
     y_end => get_array2d(pf%levels(level_index)%qend)
@@ -105,18 +106,28 @@ contains
 !      &    pf%state%step+1, pf%state%iter,level_index, pf%levels(level_index)%residual
 !     
     endif
-
+!     print*,"hooks a "
     if (pf%state%step.EQ.0) then
     frame_counter=1
     endif 
+! print*,"hooks b n_frame_step=",n_frame_step
+step=pf%state%step+1
+! print*,"hooks c step =",step
+mod_step=mod(step,n_frame_step)
+! print*,"hooks d  "    
 
-    if ( mod(pf%state%step+1,n_frame_step) == 0 )  then
+    if ( mod_step .EQ. 0 )  then
+! print*,"hooks e  "    
+
 !        write(frame_name, '(A,I0,A,I0,A,A)') 'frame_temp_',frame_counter,'TimeProc_',Color_Pizza,'.test'
+Temp_Mloc=y_end
        write(frame_name, '(A,I0,A,I0,A,A)') 'frame_temp_',frame_counter,'.test'
-       call write_snapshot_mloc(frame_name, pf%state%t0+pf%state%dt, temp_Mloc)     
+       call write_snapshot_mloc(frame_name, pf%state%t0+pf%state%dt, Temp_Mloc)     
        frame_counter= frame_counter +1
+! print*,"hooks f  "    
+       
     endif
-    
+! print*,"hooks g  "    
     
     deallocate(Temp_Mloc)
 !     print '("time_series: step: ",i6.3," iter: ",i4.3," level: ",i2.2," error: ",es14.7," res: ",es14.7)', &
