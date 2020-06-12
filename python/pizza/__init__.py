@@ -8,3 +8,5 @@ from .plotlib import *
 from .radial import *
 from .spectrum import *
 from .averages import *
+from .error_plots import *
+from .nom_infini_error import *
