@@ -165,8 +165,6 @@ class maxerror_instdef(PizzaSetup):
         #print "n_r_max2",self.n_r_max2
         #print "n_m_max2",self.n_m_max2
         self.n_phi2 = (self.n_m_max2-1)*2
-        self.dphi2  = 2.0*np.pi/(self.n_phi2)
-        #print "self.n_phi2=", self.n_phi2
         
         #self.uphi_m = f1.field_m
         f1_r = spec_spat(f1.field_m, self.n_phi1)
@@ -188,31 +186,36 @@ class maxerror_instdef(PizzaSetup):
         #print "made it here a"
 
         max_f_error_real_abs=0.000000000000000
+        max_f_real_abs=0.000000000000000
         
         for i in range(0,self.n_phi1):
             for k in range(0,self.n_r_max1):
                 if (abs(f_error_real_abs[i,k]))>max_f_error_real_abs:
                    max_f_error_real_abs = f_error_real_abs[i,k]
+        for i in range(0,self.n_phi1):
+            for k in range(0,self.n_r_max1):
+                if (abs(f1_r[i,k]))>max_f_real_abs:
+                   max_f_real_abs = f1_r[i,k]
 
         print "max_f_error_real_abs", max_f_error_real_abs
 
-                
-        f_error_real_rel=2.0*f2_r
-        for i in range(0,self.n_phi1):
-            for k in range(0,self.n_r_max1):
-                #self.f1_bis[i,k] = 0.000000000000000
-                if (abs(f1_r[i,k]))>(0.000000000001):
-                   f_error_real_rel[i,k] = f_error_real_abs[i,k]/f1_r[i,k]
-                if (abs(f1_r[i,k]))<=(0.000000000001):
-                    #print "i=",i,"k=", k,"f1_cheb_abs_real=0.0"
-                    f_error_real_rel[i,k]=0.0
-        max_f_error_real_rel=0.000000000000000
+        max_f_error_real_rel=max_f_error_real_abs/max_f_real_abs
+        #f_error_real_rel=2.0*f2_r
+        #for i in range(0,self.n_phi1):
+            #for k in range(0,self.n_r_max1):
+                ##self.f1_bis[i,k] = 0.000000000000000
+                #if (abs(f1_r[i,k]))>(0.000000000001):
+                   #f_error_real_rel[i,k] = f_error_real_abs[i,k]/f1_r[i,k]
+                #if (abs(f1_r[i,k]))<=(0.000000000001):
+                    ##print "i=",i,"k=", k,"f1_cheb_abs_real=0.0"
+                    #f_error_real_rel[i,k]=0.0
+        #max_f_error_real_rel=0.000000000000000
 
-        for i in range(0,self.n_phi1):
-            for k in range(0,self.n_r_max1):
-                #print "f_error_real_rel(i=",i,",k=",k,")=",f_error_real_rel[i,k]
-                if (abs(f_error_real_rel[i,k]))>max_f_error_real_rel:
-                   max_f_error_real_rel = f_error_real_rel[i,k]
+        #for i in range(0,self.n_phi1):
+            #for k in range(0,self.n_r_max1):
+                ##print "f_error_real_rel(i=",i,",k=",k,")=",f_error_real_rel[i,k]
+                #if (abs(f_error_real_rel[i,k]))>max_f_error_real_rel:
+                   #max_f_error_real_rel = f_error_real_rel[i,k]
 
         #max_f_error_real_rel=max(abs(f1_r - f2_r))
                     
