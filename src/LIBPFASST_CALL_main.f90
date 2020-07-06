@@ -110,7 +110,8 @@ contains
 
     !> Add some hooks for output
 !     call pf_add_hook(pf, -1, PF_POST_SWEEP, echo_error)
-    call pf_add_hook(pf, -1, PF_POST_CONVERGENCE, time_series)
+!     call pf_add_hook(pf, -1, PF_POST_CONVERGENCE, time_series)
+    call pf_add_hook(pf, -1, PF_POST_BLOCK, time_series)
 !     call pf_add_hook(pf, -1, PF_POST_SWEEP, time_series)
 !     call pf_add_hook(pf, -1, PF_POST_ITERATION, time_series)
 !     print*, "Before pf_print_options"
