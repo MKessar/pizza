@@ -88,7 +88,7 @@ contains
          complex(cp),         intent(in) :: om_Rloc(n_m_max, nRstart:nRstop)
          complex(cp),         intent(in) :: temp_Rloc(n_m_max, nRstart:nRstop)
          complex(cp),         intent(in) :: xi_Rloc(n_m_max, nRstart:nRstop)
-         class(type_tscheme), intent(in) :: tscheme
+         class(type_tscheme), intent(in),optional :: tscheme
 
       !-- Output variables
       complex(cp),       intent(out) :: dpsidt_Rloc(n_m_max, nRstart:nRstop)
@@ -99,7 +99,7 @@ contains
       complex(cp),       intent(out) :: dVsOm_Rloc(n_m_max, nRstart:nRstop)
       real(cp),          intent(out) :: dtr_Rloc(nRstart:nRstop)
       real(cp),          intent(out) :: dth_Rloc(nRstart:nRstop)
-      type(timers_type), intent(inout) :: timers
+      type(timers_type), intent(inout),optional :: timers
 
       !-- Local variables
       real(cp) :: usom, runStart, runStop
@@ -134,17 +134,20 @@ contains
          runStop = MPI_Wtime()
          if ( l_heat ) call ifft(temp_Rloc(:,n_r), temp_grid)
          if ( l_chem ) call ifft(xi_Rloc(:,n_r), xi_grid)
-         if ( runStop > runStart ) then
-            timers%fft = timers%fft + (runStop-runStart)
-            timers%n_fft_calls = timers%n_fft_calls + 3
+         if (present(tscheme)) then
+            if ( runStop > runStart ) then
+               timers%fft = timers%fft + (runStop-runStart)
+               timers%n_fft_calls = timers%n_fft_calls + 3
+            end if
          end if
 
          !-- Courant condition
-         if ( tscheme%istage == 1 ) then
-            call courant(n_r, dtr_Rloc(n_r), dth_Rloc(n_r), us_grid, up_grid, &
-                 &       tscheme%courfac)
+         if (present(tscheme)) then
+            if ( tscheme%istage == 1 ) then
+               call courant(n_r, dtr_Rloc(n_r), dth_Rloc(n_r), us_grid, up_grid, &
+                    &       tscheme%courfac)
+            end if
          end if
-
          !-- Get nonlinear products
          if ( l_heat ) then
             do n_phi=1,n_phi_max
@@ -176,9 +179,11 @@ contains
             call fft(upXi_grid, dxidt_Rloc(:,n_r))
             call fft(usXi_grid, dVsXi_Rloc(:,n_r))
          end if
+         if (present(tscheme)) then
          if ( runStop > runStart ) then
             timers%fft = timers%fft + (runStop-runStart)
             timers%n_fft_calls = timers%n_fft_calls + 2
+         end if
          end if
 
          if ( l_heat ) then
