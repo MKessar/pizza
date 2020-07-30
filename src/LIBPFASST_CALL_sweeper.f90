@@ -247,16 +247,16 @@ contains
     this%or1 = or1
     this%or2 = or2
     
-    allocate(this%rhs_mat(n_r_max))
-    allocate(this%rhs_bounds(nMstart:nMstop,n_r_max))
-    allocate(this%tMat_fac(n_r_max,nMstart:nMstop))
-    allocate(this%tPivot_temp(n_r_max,nMstart:nMstop))
-    allocate(this%tMat_temp(n_r_max,n_r_max,nMstart:nMstop))
-    this%rhs_mat     = 0.0
-    this%rhs_bounds  = 0.0
-    this%tMat_fac    = 0.0
-    this%tPivot_temp = 0
-    this%tMat_temp   = 0.0
+!     allocate(this%rhs_mat(n_r_max))
+!     allocate(this%rhs_bounds(nMstart:nMstop,n_r_max))
+!     allocate(this%tMat_fac(n_r_max,nMstart:nMstop))
+!     allocate(this%tPivot_temp(n_r_max,nMstart:nMstop))
+!     allocate(this%tMat_temp(n_r_max,n_r_max,nMstart:nMstop))
+!     this%rhs_mat     = 0.0
+!     this%rhs_bounds  = 0.0
+!     this%tMat_fac    = 0.0
+!     this%tPivot_temp = 0
+!     this%tMat_temp   = 0.0
 !     allocate ( type_cheb :: this%rscheme )
 
      
@@ -283,9 +283,6 @@ contains
     !>  Call base sweeper destroy
     call this%imex_destroy(pf,level_index)
 
-    !> Nuke the FFT operators 
-!     deallocate(this%opE)
-!     deallocate(this%opI)
 
     deallocate(this%u_s_m_Mloc   )
     deallocate(this%u_phi_m_Mloc )
@@ -293,14 +290,28 @@ contains
 
     deallocate(this%u_s_m_Rloc   )
     deallocate(this%u_phi_m_Rloc )
-!     deallocate(this%theta_Rloc   )
+    deallocate(this%om_m_Rloc    )
+    deallocate(this%theta_m_Rloc )
     
     deallocate(this%u_s_Rloc     )
     deallocate(this%u_phi_Rloc   )
     deallocate(this%theta_r_Rloc )
+    deallocate(this%om_Rloc      )
+    deallocate(this%xi_Rloc      )
 
     deallocate(this%fvec_Mloc   )
     deallocate(this%rhsvec_Mloc )
+
+    
+    deallocate(this%dtempdt_Rloc )
+    deallocate(this%dVsT_Rloc    )
+    deallocate(this%dxidt_Rloc   )
+    deallocate(this%dVsXi_Rloc   )
+    deallocate(this%dpsidt_Rloc  )
+    deallocate(this%dVsOm_Rloc   )
+
+    deallocate(this%dVsT_Mloc)
+    deallocate(this%buo_Mloc)
 
     deallocate(this%tmp_Rloc)
     deallocate(this%tmp_bis_Rloc)
@@ -309,42 +320,14 @@ contains
     deallocate(this%tmphat_bis_Rloc)
     deallocate(this%tmphat_Mloc)
     deallocate(this%tmphat_bis_Mloc)
-
-    deallocate(this%rhs_mat)
-    deallocate(this%rhs_bounds)
-    deallocate(this%tMat_fac)
-    deallocate(this%tPivot_temp)
-    deallocate(this%tMat_temp)
+   
+    deallocate(this%dtr_Rloc)
+    deallocate(this%dth_Rloc)    
     
     deallocate(this%r)
     deallocate(this%or1)
     deallocate(this%or2)
-! 
-!     deallocate(this%u_s_m_Mloc)
-!     deallocate(this%u_phi_m_Mloc)
-!     deallocate(this%u_s_m_Rloc)
-!     deallocate(this%u_phi_m_Rloc)
-!     deallocate(this%u_s_Rloc)
-!     deallocate(this%u_phi_Rloc)
-!     
-!     deallocate(this%tmp_Mloc)
-!     deallocate(this%tmp_bis_Mloc)
-!     deallocate(this%tmphat_Mloc)
-!     deallocate(this%tmphat_bis_Mloc)
-!     deallocate(this%tmp_Rloc)
-!     deallocate(this%tmp_bis_Rloc)
-!     deallocate(this%tmphat_Rloc)
-!     deallocate(this%tmphat_bis_Rloc)
-! !     deallocate(this%ddm)
-!     
-!     deallocate(this%r)
-!     deallocate(this%or1)
-!     deallocate(this%or2)
-!     
-!     deallocate(this%rhs_mat)
-!     deallocate(this%tMat_fac)
-!     deallocate(this%tPivot_temp)
-!     deallocate(this%tMat_temp)
+
 
   end subroutine destroy
   
