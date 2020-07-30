@@ -651,8 +651,8 @@ contains
 ! 
 !  print*,"Barrier b init condition Key_Pizza =",Key_Pizza     
     yvec => get_array2d(y_0)  
-    print*,"shape yvec", shape(yvec)
-    print*,"shape temp_Mloc", shape(temp_Mloc)
+!     print*,"shape yvec", shape(yvec)
+!     print*,"shape temp_Mloc", shape(temp_Mloc)
 !      yvec=0.0!temp_Mloc
      yvec=temp_Mloc
 !  print*,"Barrier c init condition Key_Pizza =",Key_Pizza 
