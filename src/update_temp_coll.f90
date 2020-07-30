@@ -3,7 +3,7 @@ module update_temp_coll
    use precision_mod
    use mem_alloc, only: bytes_allocated
    use constants, only: one, zero, four, ci
-   use namelists, only: kbott, ktopt, tadvz_fac, TdiffFac, BuoFac, l_buo_imp
+   use namelists, only: kbott, ktopt, tadvz_fac, TdiffFac, BuoFac, l_buo_imp,nnodes
    use radial_functions, only: rscheme, or1, or2, dtcond, tcond, beta, &
        &                       rgrav
    use horizontal, only: hdif_T, bott_Mloc, topt_Mloc
@@ -20,11 +20,11 @@ module update_temp_coll
    
    private
 
-   logical,  allocatable :: lTmat(:)
-   real(cp), allocatable :: tMat(:, :, :)
-   integer,  allocatable :: tPivot(:, :)
+   logical,  allocatable :: lTmat(:,:)
+   real(cp), allocatable :: tMat(:, :, :,:)
+   integer,  allocatable :: tPivot(:, :,:)
 #ifdef WITH_PRECOND_S
-   real(cp), allocatable :: tMat_fac(:,:)
+   real(cp), allocatable :: tMat_fac(:,:,:)
 #endif
    complex(cp), allocatable :: rhs(:)
 
@@ -35,16 +35,16 @@ contains
 
    subroutine initialize_temp_coll
 
-      allocate( lTmat(nMstart:nMstop) )
-      lTmat(:)=.false.
+      allocate( lTmat(nMstart:nMstop,(nnodes-1)) )
+      lTmat(:,:)=.false.
       bytes_allocated = bytes_allocated+(nMstop-nMstart+1)*SIZEOF_LOGICAL
 
-      allocate( tMat(n_r_max, n_r_max, nMstart:nMstop) )
-      allocate( tPivot(n_r_max, nMstart:nMstop) )
+      allocate( tMat(n_r_max, n_r_max, nMstart:nMstop,(nnodes-1) ))
+      allocate( tPivot(n_r_max, nMstart:nMstop,(nnodes-1)) )
       bytes_allocated = bytes_allocated+(nMstop-nMstart+1)*n_r_max*n_r_max* &
       &                 SIZEOF_DEF_REAL+n_r_max*(nMstop-nMstart+1)*SIZEOF_INTEGER
 #ifdef WITH_PRECOND_S
-      allocate( tMat_fac(n_r_max, nMstart:nMstop) )
+      allocate( tMat_fac(n_r_max, nMstart:nMstop,(nnodes-1) ))
       bytes_allocated = bytes_allocated+(nMstop-nMstart+1)*n_r_max*  &
       &                 SIZEOF_DEF_REAL
 #endif
@@ -64,13 +64,14 @@ contains
    end subroutine finalize_temp_coll
 !------------------------------------------------------------------------------
    subroutine update_temp_co(temp_Mloc, dtemp_Mloc, buo_Mloc, dTdt, &
-              &               lMat, l_log_next,tscheme,dtq,work_Mloc_pfasst)
+              &               lMat, l_log_next,tscheme,dtq,work_Mloc_pfasst,int_mat)
 
       !-- Input variables
       class(type_tscheme), intent(in),optional :: tscheme
       logical,             intent(in) :: lMat
       logical,             intent(in) :: l_log_next
       real(cp),intent(in),optional    :: dtq
+      integer,intent(in),optional     :: int_mat
       
       !-- Output variables
       complex(cp),       intent(out) :: temp_Mloc(nMstart:nMstop, n_r_max)
@@ -81,17 +82,15 @@ contains
       
       !-- Local variables
       integer :: n_r, n_m, n_r_out, m
-!       print*,"--------------"
-!       print*,"--------------"
-!       print*,"--------------"
-!       print*,"update_temp_co"
-!       print*,"--------------"
-!       print*,"--------------"
-!       print*,"--------------"
-!       print*,"lMat",lMat
-!       print*,"present(dtq)",present(dtq)
+      integer :: i_mat
+
+      if (present(int_mat)) then
+         i_mat=int_mat
+      else
+         i_mat=1
+      endif
       if ( lMat ) then
-      lTMat(:)=.false.
+      lTMat(:,i_mat)=.false.
       endif
       
 !      if (present(dtq)) then
@@ -112,24 +111,25 @@ contains
 
          m = idx2m(n_m)
       if (present(dtq)) then
-         if ( .not. lTmat(n_m) ) then
+         if ( .not. lTmat(n_m,i_mat) ) then
+         print*,"get matrice i_mat=",i_mat,"int_mat=",int_mat
 #ifdef WITH_PRECOND_S
-            call get_tempMat( m, tMat(:,:,n_m), tPivot(:,n_m), &
-                 &           tMat_fac(:,n_m),dtq=dtq)
+            call get_tempMat( m, tMat(:,:,n_m,i_mat), tPivot(:,n_m,i_mat), &
+                 &           tMat_fac(:,n_m,i_mat),dtq=dtq)
 #else
-            call get_tempMat(m, tMat(:,:,n_m), tPivot(:,n_m),dtq=dtq)
+            call get_tempMat(m, tMat(:,:,n_m,i_mat), tPivot(:,n_m,i_mat),dtq=dtq)
 #endif
-            lTmat(n_m)=.true.
+            lTmat(n_m,i_mat)=.true.
          end if    
       else
-        if ( .not. lTmat(n_m) ) then
+        if ( .not. lTmat(n_m,i_mat) ) then
 #ifdef WITH_PRECOND_S
-           call get_tempMat( m, tMat(:,:,n_m), tPivot(:,n_m), &
-                &           tMat_fac(:,n_m),tscheme)
+           call get_tempMat( m, tMat(:,:,n_m,i_mat), tPivot(:,n_m,i_mat), &
+                &           tMat_fac(:,n_m,i_mat),tscheme)
 #else
-           call get_tempMat( m, tMat(:,:,n_m), tPivot(:,n_m),tscheme)
+           call get_tempMat( m, tMat(:,:,n_m,i_mat), tPivot(:,n_m,i_mat),tscheme)
 #endif
-           lTmat(n_m)=.true.
+           lTmat(n_m,i_mat)=.true.
         end if
       endif
          !-- Inhomogeneous B.Cs (if not zero)
@@ -141,11 +141,11 @@ contains
 
 #ifdef WITH_PRECOND_S
          do n_r=1,n_r_max
-            rhs(n_r) = tMat_fac(n_r,n_m)*rhs(n_r)
+            rhs(n_r) = tMat_fac(n_r,n_m,i_mat)*rhs(n_r)
          end do
 #endif
 
-         call solve_full_mat(tMat(:,:,n_m), n_r_max, n_r_max, tPivot(:, n_m), &
+         call solve_full_mat(tMat(:,:,n_m,i_mat), n_r_max, n_r_max, tPivot(:, n_m,i_mat), &
               &              rhs(:))
 
          do n_r_out=1,rscheme%n_max

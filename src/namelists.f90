@@ -119,7 +119,7 @@ module namelists
    
    logical,  public :: Pfasst_stepping          ! Azimuthal wavenumber for hdif
    integer,  public :: nproc_time
-   integer,  public :: nlevel
+   integer,  public :: nlevels
    integer,  public :: niters
    integer,  public :: qtype
    real(cp), public :: abs_res_tol        ! Hyperdiffusion amplitude on velocity
@@ -169,10 +169,10 @@ contains
       &                       n_frames, n_frame_step, n_specs, n_spec_step,&
       &                       l_vphi_balance,l_vort_balance,bl_cut,        &
       &                       l_2D_spectra, l_2D_SD, l_corr
-      namelist/PF_STEP/Pfasst_stepping
-      namelist/PF_PARAMS/nproc_time,nlevel,niters,qtype,abs_res_tol,&
+      namelist/PF_STEP/ Pfasst_stepping
+      namelist/pf_params/nlevels,niters,qtype,abs_res_tol,&
       &                  rel_res_tol,nnodes,nsweeps_pred,nsweeps
-      namelist/PARAMS/n_modes_m,n_points_r,n_points_phi,nproc_time,Tfin,nsteps,dt,imex_stat
+      namelist/PARAMS/n_modes_m,n_points_r,n_points_phi,Tfin,nsteps,dt,imex_stat
 
    !namelist/control/tag,n_times
 
@@ -246,17 +246,10 @@ contains
          end if
          close(input_handle)
          
+
          open(newunit=input_handle,file=trim(input_filename))
          !-- Reading start field info from namelists in STDIN:
-         if ( Key_Pizza == 0 ) write(*,*) '!  Reading output control information!'
-         read(input_handle,nml=PF_PARAMS,iostat=res)
-         if ( res /= 0 .and. Key_Pizza == 0 ) then
-            write(*,*) '! No PF_PARAMS namelist found!'
-         end if
-         close(input_handle)
-         open(newunit=input_handle,file=trim(input_filename))
-         !-- Reading start field info from namelists in STDIN:
-         if ( Key_Pizza == 0 ) write(*,*) '!  Reading output control information!'
+         if ( Key_Pizza == 0 ) write(*,*) '!  Reading PF_STEP information!'
          read(input_handle,nml=PF_STEP,iostat=res)
          if ( res /= 0 .and. Key_Pizza == 0 ) then
             write(*,*) '! No PF_STEP namelist found!'
@@ -265,13 +258,31 @@ contains
          
          open(newunit=input_handle,file=trim(input_filename))
          !-- Reading start field info from namelists in STDIN:
-         if ( Key_Pizza == 0 ) write(*,*) '!  Reading output control information!'
+         if ( Key_Pizza == 0 ) write(*,*) '!  Reading pf_params information!'
+         read(input_handle,nml=pf_params,iostat=res)
+         if ( res /= 0 .and. Key_Pizza == 0 ) then
+            write(*,*) '! No pf_params namelist found!'
+         end if
+         close(input_handle)   
+
+         open(newunit=input_handle,file=trim(input_filename))
+         !-- Reading start field info from namelists in STDIN:
+         if ( Key_Pizza == 0 ) write(*,*) '!  Reading PARAMS information!'
          read(input_handle,nml=PARAMS,iostat=res)
          if ( res /= 0 .and. Key_Pizza == 0 ) then
             write(*,*) '! No PARAMS namelist found!'
          end if
          close(input_handle)
-         
+
+
+!          open(newunit=input_handle,file=trim(input_filename))
+!          !-- Reading start field info from namelists in STDIN:
+!          if ( Key_Pizza == 0 ) write(*,*) '!  Reading test information!'
+!          read(input_handle,nml=test,iostat=res)
+!          if ( res /= 0 .and. Key_Pizza == 0 ) then
+!             write(*,*) '! No test namelist found!'
+!          end if
+!          close(input_handle)         
          
 !       un = 9
 !       write(*,*) 'opening file ',TRIM("input.nml"), '  for input'
@@ -605,7 +616,7 @@ contains
       
       Pfasst_stepping  =.false.
       nproc_time = 1
-      nlevel = 1 
+      nlevels = 1 
       niters = 100
       qtype = 1
       abs_res_tol = 1.d-12
@@ -741,7 +752,7 @@ contains
       write(n_out,*) "&PF_PARAMS"
       write(n_out,'(''  Pfasst_stepping ='',l3,'','')') Pfasst_stepping
       write(n_out,'(''  nproc_time      ='',i5,'','')') nproc_time
-      write(n_out,'(''  nlevel          ='',i5,'','')') nlevel
+      write(n_out,'(''  nlevels          ='',i5,'','')') nlevels
       write(n_out,'(''  niters          ='',i5,'','')') niters
       write(n_out,'(''  qtype           ='',i5,'','')') qtype
       write(n_out,'(''  abs_res_tol     ='',ES14.6,'','')') abs_res_tol

@@ -23,6 +23,8 @@ module pf_my_sweeper
   implicit none
   logical :: lMat=.true.
   logical :: l_log_next=.false.
+  integer :: i_substep=1
+
 !   integer ::  ierror
 
   !>  extend the imex sweeper type with stuff we need to compute rhs
@@ -523,7 +525,7 @@ contains
   subroutine f_comp(this, y, t, dtq, rhs, level_index, f,piece)
   use fieldsLast, only: dTdt
 !     use probin, only:  imex_stat ,nu,v
-    use namelists, only:  n_points_r
+    use namelists, only:  n_points_r,nnodes
     use radial_functions, only: rscheme!, or1, or2!, dtcond, rgrav
     use truncation, only: idx2m!, m2idx
     use horizontal, only: bott_Mloc, topt_Mloc
@@ -539,15 +541,16 @@ contains
     integer,             intent(in   ) :: piece   !  Designates which piece to solve for (here implicit)
 
     complex(pfdp),         pointer :: yvec(:,:), rhsvec(:,:), fvec(:,:)
-!     type(pf_fft_t),     pointer :: fft
     integer :: m,n_m,n_r,n_r_out
+!     integer :: i_substep
+
 !     integer::nMstart, nMstop
 ! 
 !     nMstart=1
 !     nMstop =n_modes_m(level_index)
     
-
-   
+    
+    
     if (piece == 2) then
        yvec  => get_array2d(y)
        rhsvec => get_array2d(rhs)
@@ -558,7 +561,7 @@ contains
        this%rhsvec_Mloc = rhsvec 
 
        call update_temp_co(this%theta_Mloc, this%tmphat_Mloc, this%tmphat_bis_Mloc, dTdt, &
-            &              lMat, l_log_next,dtq=dtq,work_Mloc_pfasst=this%rhsvec_Mloc )
+            &              lMat, l_log_next,dtq=dtq,work_Mloc_pfasst=this%rhsvec_Mloc,int_mat=i_substep )
 !               
 !       do n_m=nMstart, nMstop
 ! 
@@ -629,7 +632,11 @@ contains
     else
        print *,'Bad piece in f_comp ',piece
     end if
-    
+    i_substep=i_substep+1
+    if (i_substep.EQ.(nnodes)) then
+       i_substep = 1
+       lMat=.false.
+    end if
  
   end subroutine f_comp
 
