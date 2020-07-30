@@ -93,26 +93,26 @@ contains
       lTMat(:,i_mat)=.false.
       endif
       
-!      if (present(dtq)) then
+     if (present(dtq)) then
       
          work_Mloc=work_Mloc_pfasst
       
-!      else
-!          !-- Calculation of the implicit part
-!          call get_temp_rhs_imp_coll(temp_Mloc, dtemp_Mloc,          &
-!               &                     dTdt%old(:,:,tscheme%istage),   &
-!               &                     dTdt%impl(:,:,tscheme%istage),  &
-!               &                     tscheme%l_imp_calc_rhs(tscheme%istage))
-!
-!          !-- Now assemble the right hand side and store it in work_Mloc
-!          call tscheme%set_imex_rhs(work_Mloc, dTdt, nMstart, nMstop, n_r_max)
-!      endif
+     else
+         !-- Calculation of the implicit part
+         call get_temp_rhs_imp_coll(temp_Mloc, dtemp_Mloc,          &
+              &                     dTdt%old(:,:,tscheme%istage),   &
+              &                     dTdt%impl(:,:,tscheme%istage),  &
+              &                     tscheme%l_imp_calc_rhs(tscheme%istage))
+
+         !-- Now assemble the right hand side and store it in work_Mloc
+         call tscheme%set_imex_rhs(work_Mloc, dTdt, nMstart, nMstop, n_r_max)
+     endif
       do n_m=nMstart, nMstop
 
          m = idx2m(n_m)
       if (present(dtq)) then
          if ( .not. lTmat(n_m,i_mat) ) then
-         print*,"get matrice i_mat=",i_mat,"int_mat=",int_mat
+!          print*,"get matrice i_mat=",i_mat,"int_mat=",int_mat
 #ifdef WITH_PRECOND_S
             call get_tempMat( m, tMat(:,:,n_m,i_mat), tPivot(:,n_m,i_mat), &
                  &           tMat_fac(:,n_m,i_mat),dtq=dtq)
