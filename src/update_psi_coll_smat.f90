@@ -6,7 +6,7 @@ module update_psi_coll_smat
    use constants, only: one, zero, ci, half
    use horizontal, only: hdif_V
    use namelists, only: kbotv, ktopv, alpha, r_cmb, CorFac, ViscFac, &
-       &                l_coriolis_imp, l_buo_imp, l_ek_pump, l_non_rot
+       &                l_coriolis_imp, l_buo_imp, l_ek_pump, l_non_rot,nnodes
    use radial_functions, only: rscheme, or1, or2, beta, dbeta, ekpump, oheight
    use blocking, only: nMstart, nMstop, l_rank_has_m0
    use truncation, only: n_r_max, idx2m, m2idx
@@ -24,11 +24,11 @@ module update_psi_coll_smat
    
    private
 
-   logical,  allocatable :: lPsimat(:)
-   complex(cp), allocatable :: psiMat(:,:,:)
-   real(cp), allocatable :: uphiMat(:,:)
-   integer,  allocatable :: psiPivot(:,:)
-   real(cp), allocatable :: psiMat_fac(:,:,:)
+   logical,  allocatable :: lPsimat(:,:)
+   complex(cp), allocatable :: psiMat(:,:,:,:)
+   real(cp), allocatable :: uphiMat(:,:,:)
+   integer,  allocatable :: psiPivot(:,:,:)
+   real(cp), allocatable :: psiMat_fac(:,:,:,:)
    complex(cp), allocatable :: rhs(:)
    real(cp), allocatable :: rhs_m0(:)
 
@@ -39,13 +39,15 @@ contains
 
    subroutine initialize_om_coll_smat
 
-      allocate( lPsimat(nMstart:nMstop) )
-      lPsimat(:)=.false.
+      allocate( lPsimat(nMstart:nMstop,(nnodes-1)) )
+      lPsimat(:,:)=.false.
+
+      
       bytes_allocated = bytes_allocated+(nMstop-nMstart+1)*SIZEOF_LOGICAL
 
-      allocate( psiMat(2*n_r_max, 2*n_r_max, nMstart:nMstop) )
-      allocate( psiPivot(2*n_r_max, nMstart:nMstop) )
-      allocate( psiMat_fac(2*n_r_max, 2, nMstart:nMstop) )
+      allocate( psiMat(2*n_r_max, 2*n_r_max, nMstart:nMstop,(nnodes-1)) )
+      allocate( psiPivot(2*n_r_max, nMstart:nMstop,(nnodes-1)) )
+      allocate( psiMat_fac(2*n_r_max, 2, nMstart:nMstop,(nnodes-1)) )
       allocate( rhs(2*n_r_max), rhs_m0(n_r_max) )
 
       bytes_allocated = bytes_allocated+(nMstop-nMstart+1)*4*n_r_max*n_r_max* &
@@ -53,7 +55,7 @@ contains
       &                 SIZEOF_INTEGER+ n_r_max*(3+4*(nMstop-nMstart+1))*     &
       &                 SIZEOF_DEF_REAL
 
-      allocate( uphiMat(n_r_max,n_r_max) )
+      allocate( uphiMat(n_r_max,n_r_max,(nnodes-1)) )
       bytes_allocated = bytes_allocated+n_r_max*n_r_max*SIZEOF_DEF_REAL
 
    end subroutine initialize_om_coll_smat
@@ -66,51 +68,73 @@ contains
    end subroutine finalize_om_coll_smat
 !------------------------------------------------------------------------------
    subroutine update_om_coll_smat(psi_Mloc, om_Mloc, dom_Mloc, us_Mloc, up_Mloc, &
-              &                   buo_Mloc, dpsidt, vp_bal, vort_bal, tscheme,   &
-              &                   lMat, timers)
+              &                   buo_Mloc, lMat, dpsidt, vp_bal, vort_bal,    &
+              &                   timers,tscheme,dtq,work_Mloc_pfasst,int_mat)
 
       !-- Input variables
-      class(type_tscheme), intent(in) :: tscheme
+      class(type_tscheme), intent(in),optional :: tscheme
       logical,             intent(in) :: lMat
       complex(cp),         intent(in) :: buo_Mloc(nMstart:nMstop,n_r_max)
-
+      real(cp),intent(in),optional    :: dtq
+      integer,intent(in),optional     :: int_mat
+      
       !-- Output variables
       complex(cp),         intent(out) :: psi_Mloc(nMstart:nMstop,n_r_max)
       complex(cp),         intent(out) :: om_Mloc(nMstart:nMstop,n_r_max)
       complex(cp),         intent(out) :: dom_Mloc(nMstart:nMstop,n_r_max)
       complex(cp),         intent(out) :: us_Mloc(nMstart:nMstop,n_r_max)
       complex(cp),         intent(out) :: up_Mloc(nMstart:nMstop,n_r_max)
-      type(vp_bal_type),   intent(inout) :: vp_bal
-      type(vort_bal_type), intent(inout) :: vort_bal
-      type(type_tarray),   intent(inout) :: dpsidt
-      type(timers_type),   intent(inout) :: timers
+      type(vp_bal_type),   intent(inout),optional :: vp_bal
+      type(vort_bal_type), intent(inout),optional :: vort_bal
+      type(type_tarray),   intent(inout),optional :: dpsidt
+      type(timers_type),   intent(inout),optional :: timers
+      complex(cp),optional :: work_Mloc_pfasst(nMstart:nMstop,n_r_max)
 
       !-- Local variables
       real(cp) :: uphi0(n_r_max), om0(n_r_max), runStart, runStop
       integer :: n_r, n_m, n_cheb, m
+      integer :: i_mat
 
-      if ( lMat ) lPsimat(:)=.false.
-
-
-      !-- Calculation of the implicit part
-      call get_psi_rhs_imp_coll_smat(us_Mloc, up_Mloc, om_Mloc, dom_Mloc,    &
-           &                         dpsidt%old(:,:,tscheme%istage),         &
-           &                         dpsidt%impl(:,:,tscheme%istage),        &
-           &                         vp_bal, vort_bal,                       &
-           &                         tscheme%l_imp_calc_rhs(tscheme%istage))
-
+      if (present(int_mat)) then
+         i_mat=int_mat
+      else
+         i_mat=1
+      endif
+      
+      if ( lMat ) lPsimat(:,i_mat)=.false.
+      
+      if (present(dtq)) then
+      
+          work_Mloc=work_Mloc_pfasst
+      
+      else
+          !-- Calculation of the implicit part
+          call get_psi_rhs_imp_coll_smat(us_Mloc, up_Mloc, om_Mloc, dom_Mloc,    &
+               &                         dpsidt%old(:,:,tscheme%istage),         &
+               &                         dpsidt%impl(:,:,tscheme%istage),        &
+               &                         vp_bal, vort_bal,                       &
+               &                         tscheme%l_imp_calc_rhs(tscheme%istage))
+!       do n_r=1,n_r_max
+!          do n_m=nMstart,nMstop
+!             m = idx2m(n_m)
+!             if ( m == 3 ) then
+!             print*,"this%dpsidt%impl(m=3,n_r=",n_r,")=",dpsidt%impl(n_m,n_r,tscheme%istage)
+!             endif
+!          end do
+!       end do 
       !-- Calculate first part of time-derivative of \omega if needed
-      if ( vort_bal%l_calc .and. tscheme%istage == 1  ) then
-         call vort_bal%initialize_domdt(om_Mloc,tscheme)
-      end if
+          if ( vort_bal%l_calc .and. tscheme%istage == 1  ) then
+             call vort_bal%initialize_domdt(om_Mloc,tscheme)
+          end if
 
-      !-- Calculate first part of time-derivative of axisymmetric u_\phi if needed
-      if ( vp_bal%l_calc .and. tscheme%istage == 1  ) then
-         call vp_bal%initialize_dvpdt(up_Mloc,tscheme)
-      end if
+          !-- Calculate first part of time-derivative of axisymmetric u_\phi if needed
+          if ( vp_bal%l_calc .and. tscheme%istage == 1  ) then
+             call vp_bal%initialize_dvpdt(up_Mloc,tscheme)
+          end if
 
-      !-- Now assemble the right hand side and store it in work_Mloc
-      call tscheme%set_imex_rhs(work_Mloc, dpsidt, nMstart, nMstop, n_r_max)
+          !-- Now assemble the right hand side and store it in work_Mloc
+          call tscheme%set_imex_rhs(work_Mloc, dpsidt, nMstart, nMstop, n_r_max)
+     endif
 
       do n_m=nMstart,nMstop
 
@@ -118,9 +142,15 @@ contains
 
          if ( m == 0 ) then ! Axisymmetric component
 
-            if ( .not. lPsimat(n_m) ) then
-               call get_uphiMat(tscheme, uphiMat(:,:), psiPivot(1:n_r_max,n_m))
-               lPsimat(n_m)=.true.
+            if ( .not. lPsimat(n_m,i_mat) ) then
+               if (present(dtq)) then
+                  call get_uphiMat(uphiMat(:,:,i_mat), psiPivot(1:n_r_max,n_m,i_mat),dtq=dtq)
+              
+               else
+                  call get_uphiMat(uphiMat(:,:,i_mat), psiPivot(1:n_r_max,n_m,i_mat),tscheme)
+               
+               endif   
+               lPsimat(n_m,i_mat)=.true.
             end if
 
             rhs_m0(1)       = 0.0_cp
@@ -129,33 +159,48 @@ contains
                rhs_m0(n_r)=real(work_Mloc(n_m,n_r),kind=cp)
             end do
 
-            if ( vp_bal%l_calc ) then
-               do n_r=1,n_r_max
-                  vp_bal%rey_stress(n_r)=real(dpsidt%expl(n_m,n_r,tscheme%istage))
-               end do
-            end if
-
-            call solve_full_mat(uphiMat(:,:), n_r_max, n_r_max,   &
-                 &              psiPivot(1:n_r_max,n_m), rhs_m0(:))
+            if (present(vp_bal)) then
+               if ( vp_bal%l_calc ) then
+                  do n_r=1,n_r_max
+                     vp_bal%rey_stress(n_r)=real(dpsidt%expl(n_m,n_r,tscheme%istage))
+                  end do
+               end if
+            endif
+            
+            call solve_full_mat(uphiMat(:,:,i_mat), n_r_max, n_r_max,   &
+                 &              psiPivot(1:n_r_max,n_m,i_mat), rhs_m0(:))
 
             do n_cheb=1,rscheme%n_max
                uphi0(n_cheb)=rhs_m0(n_cheb)
             end do
 
          else ! Non-axisymmetric components
+            if (present(dtq)) then
          
-            if ( .not. lPsimat(n_m) ) then
-               call get_psiMat(tscheme, m, psiMat(:,:,n_m), psiPivot(:,n_m), &
-                    &          psiMat_fac(:,:,n_m), timers%lu, timers%n_lu_calls)
-               lPsimat(n_m)=.true.
-            end if
+               if ( .not. lPsimat(n_m,i_mat) ) then
+                  call get_psiMat( m, psiMat(:,:,n_m,i_mat), psiPivot(:,n_m,i_mat), &
+                       &          psiMat_fac(:,:,n_m,i_mat),dtq=dtq)
+                  lPsimat(n_m,i_mat)=.true.
+               end if
+            else   
+         
+               if ( .not. lPsimat(n_m,i_mat) ) then
+                  call get_psiMat(m, psiMat(:,:,n_m,i_mat), psiPivot(:,n_m,i_mat), &
+                       &          psiMat_fac(:,:,n_m,i_mat),tscheme,  timers%lu, timers%n_lu_calls)
+                  lPsimat(n_m,i_mat)=.true.
+               end if
+            endif
+            
+            if (present(tscheme)) then
 
-            if ( vort_bal%l_calc .and. tscheme%istage == tscheme%nstages ) then
-               do n_r=1,n_r_max
-                  vort_bal%buo(n_m,n_r)=buo_Mloc(n_m,n_r)/tscheme%dt(1)
-               end do
-            end if
-
+               if ( vort_bal%l_calc .and. tscheme%istage == tscheme%nstages ) then
+                  do n_r=1,n_r_max
+                     vort_bal%buo(n_m,n_r)=buo_Mloc(n_m,n_r)/tscheme%dt(1)
+                  end do
+               end if
+               
+            endif 
+            
             rhs(1)        =zero
             rhs(n_r_max)  =zero
             rhs(n_r_max+1)=zero
@@ -172,18 +217,23 @@ contains
             end do
 
             do n_r=1,2*n_r_max
-               rhs(n_r) = rhs(n_r)*psiMat_fac(n_r,1,n_m)
+               rhs(n_r) = rhs(n_r)*psiMat_fac(n_r,1,n_m,i_mat)
             end do
             runStart = MPI_Wtime()
-            call solve_full_mat(psiMat(:,:,n_m), 2*n_r_max, 2*n_r_max, &
-                 &              psiPivot(:, n_m), rhs(:))
+            call solve_full_mat(psiMat(:,:,n_m,i_mat), 2*n_r_max, 2*n_r_max, &
+                 &              psiPivot(:, n_m,i_mat), rhs(:))
             runStop = MPI_Wtime()
-            if ( runStop > runStart ) then
-               timers%solve = timers%solve + (runStop-runStart)
-               timers%n_solve_calls = timers%n_solve_calls+1
-            end if
+
+            if (present(tscheme)) then
+           
+               if ( runStop > runStart ) then
+                  timers%solve = timers%solve + (runStop-runStart)
+                  timers%n_solve_calls = timers%n_solve_calls+1
+               end if
+            endif
+            
             do n_r=1,2*n_r_max
-               rhs(n_r) = rhs(n_r)*psiMat_fac(n_r,2,n_m)
+               rhs(n_r) = rhs(n_r)*psiMat_fac(n_r,2,n_m,i_mat)
             end do
 
             do n_cheb=1,rscheme%n_max
@@ -225,11 +275,15 @@ contains
       call rscheme%costf1(psi_Mloc, nMstart, nMstop, n_r_max)
       call rscheme%costf1(om_Mloc, nMstart, nMstop, n_r_max)
       runStop = MPI_Wtime()
-      if ( runStop > runStart ) then
-         timers%dct = timers%dct + (runStop-runStart)
-         timers%n_dct_calls = timers%n_dct_calls + 2
-      end if
 
+      if (present(timers)) then
+      
+         if ( runStop > runStart ) then
+            timers%dct = timers%dct + (runStop-runStart)
+            timers%n_dct_calls = timers%n_dct_calls + 2
+         end if
+      endif
+      
       do n_r=1,n_r_max
          do n_m=nMstart,nMstop
             m = idx2m(n_m)
@@ -245,19 +299,22 @@ contains
          end do
       end do
 
-      !-- Roll the time arrays before filling again the first block
-      call tscheme%rotate_imex(dpsidt, nMstart, nMstop, n_r_max)
+      if (present(vp_bal)) then
 
-      !-- Finish calculation of du_\phi/dt if requested
-      if ( vp_bal%l_calc .and. tscheme%istage == tscheme%nstages  ) then
-         call vp_bal%finalize_dvpdt(up_Mloc, tscheme)
+         !-- Roll the time arrays before filling again the first block
+         call tscheme%rotate_imex(dpsidt, nMstart, nMstop, n_r_max)
+
+         !-- Finish calculation of du_\phi/dt if requested
+         if ( vp_bal%l_calc .and. tscheme%istage == tscheme%nstages  ) then
+            call vp_bal%finalize_dvpdt(up_Mloc, tscheme)
+         end if
+
+         !-- Finish calculation of d\omega/dt if requested
+         if ( vort_bal%l_calc .and. tscheme%istage == tscheme%nstages  ) then
+            call vort_bal%finalize_domdt(om_Mloc, tscheme)
+         end if
       end if
-
-      !-- Finish calculation of d\omega/dt if requested
-      if ( vort_bal%l_calc .and. tscheme%istage == tscheme%nstages  ) then
-         call vort_bal%finalize_domdt(om_Mloc, tscheme)
-      end if
-
+      
    end subroutine update_om_coll_smat
 !------------------------------------------------------------------------------
    subroutine finish_exp_psi_coll_smat(us_Mloc, dVsOm_Mloc, buo_Mloc, &
@@ -270,7 +327,7 @@ contains
 
       !-- Output variable
       complex(cp),         intent(inout) :: dpsi_exp_last(nMstart:nMstop,n_r_max)
-      type(vort_bal_type), intent(inout) :: vort_bal
+      type(vort_bal_type), intent(inout),optional :: vort_bal
 
       !-- Local variables:
       integer :: n_r, n_m, m
@@ -288,10 +345,12 @@ contains
                &                      or1(n_r)*work_Mloc(n_m,n_r)
 
                !-- If the force balance is requested get the advection here
-               if ( vort_bal%l_calc ) then
-                  vort_bal%adv(n_m,n_r)=dpsi_exp_last(n_m,n_r)
+               if (present(vort_bal)) then
+                  if ( vort_bal%l_calc ) then
+                     vort_bal%adv(n_m,n_r)=dpsi_exp_last(n_m,n_r)
+                  end if
                end if
-
+               
                !-- If Coriolis is treated explicitly, add it here:
                if ( .not. l_coriolis_imp ) then
                   dpsi_exp_last(n_m,n_r)=       dpsi_exp_last(n_m,n_r) &
@@ -300,6 +359,7 @@ contains
 
                !-- If Buoyancy is treated explicitly, add it here:
                if ( .not. l_buo_imp ) then
+!                print*, "l_buo_imp explicit"
                   dpsi_exp_last(n_m,n_r)=dpsi_exp_last(n_m,n_r)+buo_Mloc(n_m,n_r)
                end if
 
@@ -317,14 +377,14 @@ contains
       complex(cp), intent(in) :: us_Mloc(nMstart:nMstop,n_r_max)
       complex(cp), intent(in) :: up_Mloc(nMstart:nMstop,n_r_max)
       complex(cp), intent(in) :: om_Mloc(nMstart:nMstop,n_r_max)
-      logical,     intent(in) :: l_calc_lin_rhs
+      logical,     intent(in),optional :: l_calc_lin_rhs
 
       !-- Output variables
       complex(cp),         intent(out) :: dom_Mloc(nMstart:nMstop,n_r_max)
       complex(cp),         intent(inout) :: psi_last(nMstart:nMstop,n_r_max)
       complex(cp),         intent(inout) :: dpsi_imp_Mloc_last(nMstart:nMstop,n_r_max)
-      type(vp_bal_type),   intent(inout) :: vp_bal
-      type(vort_bal_type), intent(inout) :: vort_bal
+      type(vp_bal_type),   intent(inout),optional :: vp_bal
+      type(vort_bal_type), intent(inout),optional :: vort_bal
 
       !-- Local variables
       real(cp) :: duphi0(n_r_max), d2uphi0(n_r_max), uphi0(n_r_max)
@@ -342,6 +402,7 @@ contains
          end do
       end do
 
+      if (present(vp_bal)) then
       if ( l_calc_lin_rhs .or. vp_bal%l_calc .or. vort_bal%l_calc ) then
 
          call get_ddr(om_Mloc, dom_Mloc, work_Mloc, nMstart, nMstop, &
@@ -412,22 +473,76 @@ contains
          end do
 
       end if ! if wimp /= .or. vp_bal%l_calc .or. vort_bal%l_calc
+      
+      else
+      
+         if ( l_calc_lin_rhs ) then
 
+            call get_ddr(om_Mloc, dom_Mloc, work_Mloc, nMstart, nMstop, &
+              &       n_r_max, rscheme)
+
+            m0 = m2idx(0)
+
+            if ( l_rank_has_m0 ) then
+               do n_r=1,n_r_max
+                  uphi0(n_r)=real(up_Mloc(m0, n_r),kind=cp)
+               end do
+               call get_ddr(uphi0, duphi0, d2uphi0, n_r_max, rscheme)
+            end if
+
+            do n_r=1,n_r_max
+               do n_m=nMstart,nMstop
+                  m = idx2m(n_m)
+                  if ( m == 0 ) then
+                     dpsi_imp_Mloc_last(n_m,n_r)=ViscFac*hdif_V(n_m)*(        &
+                     &                                      d2uphi0(n_r)+     &
+                     &                        or1(n_r)*      duphi0(n_r)-     &
+                     &                        or2(n_r)*       uphi0(n_r) ) -  &
+                     &              CorFac*ekpump(n_r)*       uphi0(n_r)
+
+
+                  else
+                     dm2 = real(m,cp)*real(m,cp)
+                     dpsi_imp_Mloc_last(n_m,n_r)=ViscFac*hdif_V(n_m)*(         &
+                     &                                    work_Mloc(n_m,n_r)   &
+                     &                   +or1(n_r)*        dom_Mloc(n_m,n_r)   &
+                     &                   -dm2*or2(n_r)*     om_Mloc(n_m,n_r) ) &
+                     &             -CorFac*ekpump(n_r)*     om_Mloc(n_m,n_r)   &
+                     & +half*CorFac*ekpump(n_r)*beta(n_r)*  up_Mloc(n_m,n_r)   &
+                     & +CorFac*( ekpump(n_r)*beta(n_r)*(-ci*real(m,cp)+        &
+                     &              5.0_cp*r_cmb*oheight(n_r)) )*              &
+                     &                                      us_Mloc(n_m,n_r)
+
+                     if ( l_coriolis_imp ) then
+                        dpsi_imp_Mloc_last(n_m,n_r)=dpsi_imp_Mloc_last(n_m,n_r) &
+                        &                   + CorFac*beta(n_r)*us_Mloc(n_m,n_r)
+                     end if
+
+
+            
+                  end if
+               end do
+            end do
+
+      end if ! if wimp /= 
+      endif
+      
    end subroutine get_psi_rhs_imp_coll_smat
 !------------------------------------------------------------------------------
-   subroutine get_psiMat(tscheme, m, psiMat, psiPivot, psiMat_fac, time_lu, &
-              &          n_lu_calls)
+   subroutine get_psiMat(m, psiMat, psiPivot, psiMat_fac,tscheme,  time_lu, &
+              &          n_lu_calls, dtq)
 
       !-- Input variables
-      class(type_tscheme), intent(in) :: tscheme
+      class(type_tscheme), intent(in),optional  :: tscheme
       integer,             intent(in) :: m
+      real(cp), intent(in),optional :: dtq
 
       !-- Output variables
       complex(cp), intent(out) :: psiMat(2*n_r_max,2*n_r_max)
       integer,     intent(out) :: psiPivot(2*n_r_max)
       real(cp),    intent(out) :: psiMat_fac(2*n_r_max,2)
-      real(cp),    intent(inout) :: time_lu
-      integer,     intent(inout) :: n_lu_calls
+      real(cp),    intent(inout),optional  :: time_lu
+      integer,     intent(inout),optional  :: n_lu_calls
 
       !-- Local variables
       integer :: nR_out, nR, nR_psi, nR_out_psi, info, n_m
@@ -484,43 +599,85 @@ contains
       end if
 
       !----- Other points:
-      do nR_out=1,n_r_max
-         nR_out_psi=nR_out+n_r_max
-         do nR=2,n_r_max-1
-            nR_psi=nR+n_r_max
+      if (present(dtq)) then
+      
+         do nR_out=1,n_r_max
+            nR_out_psi=nR_out+n_r_max
+            do nR=2,n_r_max-1
+               nR_psi=nR+n_r_max
+   
+               psiMat(nR,nR_out)= rscheme%rnorm * (                         &
+               &                                  rscheme%rMat(nR,nR_out) - &
+               &         dtq*(ViscFac*hdif_V(n_m)*(         &
+               &                              rscheme%d2rMat(nR,nR_out) +   &
+               &            or1(nR)*           rscheme%drMat(nR,nR_out) -   &
+               &            dm2*or2(nR)*        rscheme%rMat(nR,nR_out) ) - &
+               &  CorFac*ekpump(nR)*            rscheme%rMat(nR,nR_out) ) )
 
-            psiMat(nR,nR_out)= rscheme%rnorm * (                         &
-            &                                  rscheme%rMat(nR,nR_out) - &
-            &         tscheme%wimp_lin(1)*(ViscFac*hdif_V(n_m)*(         &
-            &                              rscheme%d2rMat(nR,nR_out) +   &
-            &            or1(nR)*           rscheme%drMat(nR,nR_out) -   &
-            &            dm2*or2(nR)*        rscheme%rMat(nR,nR_out) ) - &
-            &  CorFac*ekpump(nR)*            rscheme%rMat(nR,nR_out) ) )
+               psiMat(nR,nR_out_psi)=-rscheme%rnorm*dtq*(   &
+               &-half*CorFac*ekpump(nR)*beta(nR)*rscheme%drMat(nR,nR_out)+  &
+               &  CorFac*( -half*ekpump(nR)*beta(nR)*beta(nR)               &
+               &   +ekpump(nR)*beta(nR)*or1(nR)*( dm2+                      &
+               &              5.0_cp*r_cmb*oheight(nR)*ci*real(m,cp)) )*    &
+               &                                  rscheme%rMat(nR,nR_out) ) 
 
-            psiMat(nR,nR_out_psi)=-rscheme%rnorm*tscheme%wimp_lin(1)*(   &
-            &-half*CorFac*ekpump(nR)*beta(nR)*rscheme%drMat(nR,nR_out)+  &
-            &  CorFac*( -half*ekpump(nR)*beta(nR)*beta(nR)               &
-            &   +ekpump(nR)*beta(nR)*or1(nR)*( dm2+                      &
-            &              5.0_cp*r_cmb*oheight(nR)*ci*real(m,cp)) )*    &
-            &                                  rscheme%rMat(nR,nR_out) ) 
+               if ( l_coriolis_imp ) then
+                  psiMat(nR,nR_out_psi) = psiMat(nR,nR_out_psi) -        &
+                  &                 rscheme%rnorm*dtq*   &
+                  &               CorFac*beta(nR)*or1(nR)*ci*real(m,cp)* &
+                  &                rscheme%rMat(nR,nR_out)
+               end if
 
-            if ( l_coriolis_imp ) then
-               psiMat(nR,nR_out_psi) = psiMat(nR,nR_out_psi) -        &
-               &                 rscheme%rnorm*tscheme%wimp_lin(1)*   &
-               &               CorFac*beta(nR)*or1(nR)*ci*real(m,cp)* &
-               &                rscheme%rMat(nR,nR_out)
-            end if
+               psiMat(nR_psi,nR_out)= rscheme%rnorm*rscheme%rMat(nR,nR_out)
 
-            psiMat(nR_psi,nR_out)= rscheme%rnorm*rscheme%rMat(nR,nR_out)
+               psiMat(nR_psi,nR_out_psi)= rscheme%rnorm * (              &
+               &                             rscheme%d2rMat(nR,nR_out) + &
+               &      (or1(nR)+beta(nR))*     rscheme%drMat(nR,nR_out) + &
+               &  (or1(nR)*beta(nR)+dbeta(nR)-dm2*or2(nR))*              &
+               &                               rscheme%rMat(nR,nR_out) )
 
-            psiMat(nR_psi,nR_out_psi)= rscheme%rnorm * (              &
-            &                             rscheme%d2rMat(nR,nR_out) + &
-            &      (or1(nR)+beta(nR))*     rscheme%drMat(nR,nR_out) + &
-            &  (or1(nR)*beta(nR)+dbeta(nR)-dm2*or2(nR))*              &
-            &                               rscheme%rMat(nR,nR_out) )
-
+            end do
          end do
-      end do
+      else
+      
+         do nR_out=1,n_r_max
+            nR_out_psi=nR_out+n_r_max
+            do nR=2,n_r_max-1
+               nR_psi=nR+n_r_max
+
+               psiMat(nR,nR_out)= rscheme%rnorm * (                         &
+               &                                  rscheme%rMat(nR,nR_out) - &
+               &         tscheme%wimp_lin(1)*(ViscFac*hdif_V(n_m)*(         &
+               &                              rscheme%d2rMat(nR,nR_out) +   &
+               &            or1(nR)*           rscheme%drMat(nR,nR_out) -   &
+               &            dm2*or2(nR)*        rscheme%rMat(nR,nR_out) ) - &
+               &  CorFac*ekpump(nR)*            rscheme%rMat(nR,nR_out) ) )
+
+               psiMat(nR,nR_out_psi)=-rscheme%rnorm*tscheme%wimp_lin(1)*(   &
+               &-half*CorFac*ekpump(nR)*beta(nR)*rscheme%drMat(nR,nR_out)+  &
+               &  CorFac*( -half*ekpump(nR)*beta(nR)*beta(nR)               &
+               &   +ekpump(nR)*beta(nR)*or1(nR)*( dm2+                      &
+               &              5.0_cp*r_cmb*oheight(nR)*ci*real(m,cp)) )*    &
+               &                                  rscheme%rMat(nR,nR_out) ) 
+
+               if ( l_coriolis_imp ) then
+                  psiMat(nR,nR_out_psi) = psiMat(nR,nR_out_psi) -        &
+                  &                 rscheme%rnorm*tscheme%wimp_lin(1)*   &
+                  &               CorFac*beta(nR)*or1(nR)*ci*real(m,cp)* &
+                  &                rscheme%rMat(nR,nR_out)
+               end if
+
+               psiMat(nR_psi,nR_out)= rscheme%rnorm*rscheme%rMat(nR,nR_out)
+
+               psiMat(nR_psi,nR_out_psi)= rscheme%rnorm * (              &
+               &                             rscheme%d2rMat(nR,nR_out) + &
+               &      (or1(nR)+beta(nR))*     rscheme%drMat(nR,nR_out) + &
+               &  (or1(nR)*beta(nR)+dbeta(nR)-dm2*or2(nR))*              &
+               &                               rscheme%rMat(nR,nR_out) )
+
+            end do
+         end do
+      endif
 
       !----- Factor for highest and lowest cheb:
       do nR=1,n_r_max
@@ -557,10 +714,13 @@ contains
       runStart = MPI_Wtime()
       call prepare_full_mat(psiMat,2*n_r_max,2*n_r_max,psiPivot,info)
       runStop = MPI_Wtime()
-      if ( runStop > runStart ) then
-         time_lu = time_lu+(runStop-runStart)
-         n_lu_calls = n_lu_calls+1
-      end if
+      if (present(time_lu)) then
+
+         if ( runStop > runStart ) then
+            time_lu = time_lu+(runStop-runStart)
+            n_lu_calls = n_lu_calls+1
+         end if
+      endif   
       if ( info /= 0 ) then
          call abortRun('Singular matrix psiMat!')
       end if
@@ -568,10 +728,11 @@ contains
 
    end subroutine get_psiMat
 !------------------------------------------------------------------------------
-   subroutine get_uphiMat(tscheme, uphiMat, uphiPivot)
+   subroutine get_uphiMat(uphiMat, uphiPivot,tscheme,dtq)
 
       !-- Input variables
-      class(type_tscheme), intent(in) :: tscheme
+      class(type_tscheme), intent(in),optional :: tscheme
+      real(cp), intent(in),optional :: dtq
 
       !-- Output variables
       real(cp), intent(out) :: uphiMat(n_r_max,n_r_max)
@@ -581,7 +742,6 @@ contains
       integer :: nR_out, nR, info, n_m
 
       n_m = m2idx(0)
-
       !----- Boundary conditions:
       do nR_out=1,rscheme%n_max
          if ( ktopv == 1 ) then !-- Free-slip
@@ -609,18 +769,32 @@ contains
       end if
 
       !----- Other points:
-      do nR_out=1,n_r_max
-         do nR=2,n_r_max-1
-            uphiMat(nR,nR_out)= rscheme%rnorm * (                     &
-            &                               rscheme%rMat(nR,nR_out) - &
-            &tscheme%wimp_lin(1)*(ViscFac*hdif_V(n_m)*(               &
-            &                           rscheme%d2rMat(nR,nR_out) +   &
-            &            or1(nR)*        rscheme%drMat(nR,nR_out) -   &
-            &            or2(nR)*         rscheme%rMat(nR,nR_out) ) - &
-            &  CorFac*ekpump(nR)*         rscheme%rMat(nR,nR_out) ) )
+      if (present(dtq)) then
+         do nR_out=1,n_r_max
+            do nR=2,n_r_max-1
+               uphiMat(nR,nR_out)= rscheme%rnorm * (                     &
+               &                               rscheme%rMat(nR,nR_out) - &
+               &                dtq*(ViscFac*hdif_V(n_m)*(               &
+               &                           rscheme%d2rMat(nR,nR_out) +   &
+               &            or1(nR)*        rscheme%drMat(nR,nR_out) -   &
+               &            or2(nR)*         rscheme%rMat(nR,nR_out) ) - &
+               &  CorFac*ekpump(nR)*         rscheme%rMat(nR,nR_out) ) )
+            end do
          end do
-      end do
-
+      else
+         do nR_out=1,n_r_max
+            do nR=2,n_r_max-1
+               uphiMat(nR,nR_out)= rscheme%rnorm * (                     &
+               &                               rscheme%rMat(nR,nR_out) - &
+               &tscheme%wimp_lin(1)*(ViscFac*hdif_V(n_m)*(               &
+               &                           rscheme%d2rMat(nR,nR_out) +   &
+               &            or1(nR)*        rscheme%drMat(nR,nR_out) -   &
+               &            or2(nR)*         rscheme%rMat(nR,nR_out) ) - &
+               &  CorFac*ekpump(nR)*         rscheme%rMat(nR,nR_out) ) )
+            end do
+         end do
+      
+      endif
       !----- Factor for highest and lowest cheb:
       do nR=1,n_r_max
          uphiMat(nR,1)      =rscheme%boundary_fac*uphiMat(nR,1)

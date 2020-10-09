@@ -13,26 +13,10 @@ use parallel_mod
   use pf_mod_dtype
   use pf_mod_stop
 !   use pf_mod_zndarray
-  use pizza_zdnarray
+!   use pizza_zdnarray
+  use pizza_zndsysarray
   integer ::  ierror
-!   type, extends(pf_zndarray_t) :: pizza_zndarray_t
-! !      integer :: ndim
-! !      integer,    allocatable :: arr_shape(:)     
-! !      complex(pfdp), allocatable :: flatarray(:)
-!    contains
-!      procedure :: norm => pizza_zndarray_norm
-!   end type pizza_zndarray_t
-  
-  !> Initialize MPI
-!   call mpi_init(ierror)
-!   if (ierror /= 0) &
-!        stop "ERROR: Can't initialize MPI."
 
-  !> Call the advection-diffusion solver 
-!   call run_pfasst()
-
-  !> Close mpi
-!   call mpi_finalize(ierror)
 
 contains
   !>  This subroutine implements pfasst to solve the advection diffusion equation
@@ -51,12 +35,17 @@ contains
     type(pf_comm_t)   :: comm     !<  the communicator (here it is mpi)
 !     type(pf_zndarray_t):: y_0      !<  the initial condition
 !     type(pf_zndarray_t):: y_end    !<  the solution at the final time
-    type(pizza_zndarray_t):: y_0      !<  the initial condition
-    type(pizza_zndarray_t):: y_end    !<  the solution at the final time
+    type(pizza_zndsysarray_t):: y_0      !<  the initial condition
+    type(pizza_zndsysarray_t):: y_end    !<  the solution at the final time
     character(256)    :: pf_fname   !<  file name for input of PFASST parameters
 
     integer           ::  l   !  loop variable over levels
     integer           ::  time_comm   !  loop variable over levels
+    integer           ::  mpibuflen  !  Length of MPI buffer
+    integer           ::  grid_shape(3)   !  size of the spatial discretization
+!     complex(pfdp),         pointer :: omega(:,:), psi(:,:), theta(:,:), uphi0(:,:)
+    complex(pfdp),         pointer :: omega(:,:), u_phi(:,:), theta(:,:), u_s(:,:)
+
 !     integer           ::  un   !  loop variable over levels
 !   integer, save :: n_modes_m(PF_MAXLEVS)     ! number of grid points
 !   integer, save :: n_points_phi(PF_MAXLEVS)     ! number of grid points
@@ -92,14 +81,19 @@ contains
        !>  Allocate the user specific level object
        allocate(ad_level_t::pf%levels(l)%ulevel)
 !        allocate(pf_zndarray_factory_t::pf%levels(l)%ulevel%factory)
-       allocate(pizza_zndarray_factory_t::pf%levels(l)%ulevel%factory)
+!        allocate(pizza_zndarray_factory_t::pf%levels(l)%ulevel%factory)
+       allocate(pizza_zndsysarray_factory_t::pf%levels(l)%ulevel%factory)
 
        !>  Add the sweeper to the level
        allocate(ad_sweeper_t::pf%levels(l)%ulevel%sweeper)
 !     print*, "Before pf_level_set_size"
-
+       !>  Allocate the shape array for level (here just one dimension)
+       grid_shape=[nMstop-nMstart+1,n_points_r(l),4]
+       mpibuflen=(product(grid_shape))*2 ! The two is because data is complex
+       
        !>  Set the size of the data on this level (here just one)
-       call pf_level_set_size(pf,l,[nMstop-nMstart+1,n_points_r(l)])
+!        call pf_level_set_size(pf,l,[nMstop-nMstart+1,n_points_r(l)])
+       call pf_level_set_size(pf,l,grid_shape,mpibuflen)
 
     end do
 !     print*, "Before pf_pfasst_setup"
@@ -125,8 +119,31 @@ contains
     !> Allocate initial and final solutions
 !     print*, "Before zndarray_build"
 
-    call pizza_zndarray_build(y_0, [ pf%levels(pf%nlevels)%lev_shape])
-    call pizza_zndarray_build(y_end, [ pf%levels(pf%nlevels)%lev_shape])
+!     call pizza_zndarray_build(y_0, [ pf%levels(pf%nlevels)%lev_shape])
+!     call pizza_zndarray_build(y_end, [ pf%levels(pf%nlevels)%lev_shape])
+    call pizza_zndsysarray_build(y_0, [ pf%levels(pf%nlevels)%lev_shape])
+    call pizza_zndsysarray_build(y_end, [ pf%levels(pf%nlevels)%lev_shape])
+
+!     select type (y_0)
+!     class is (pizza_zndsysarray_t)
+!               print*,"size y_0%arr_shape",y_0%arr_shape
+!               print*,"size y_0%flatarray",SIZE(y_0%flatarray)
+!               
+!               print*,"size y_end%arr_shape",y_end%arr_shape
+!               print*,"size y_end%flatarray",SIZE(y_end%flatarray)
+! 
+!        omega  => get_array2d(y_0,1)
+!        u_phi  => get_array2d(y_0,2)
+!        u_s    => get_array2d(y_0,3)
+!        theta  => get_array2d(y_0,4)
+!    
+!               
+!     print*,"size omega",SIZE(omega)!,"this%omega_Mloc   =",SIZE(this%omega_Mloc)
+!     print*,"size u_phi",SIZE(u_phi)!,"this%u_phi_m_Mloc =",SIZE(this%u_phi_m_Mloc)
+!     print*,"size u_s"  ,SIZE(u_s)  !,"this%u_s_m_Mloc   =",SIZE(this%u_s_m_Mloc)
+!     print*,"size theta",SIZE(theta)!,"this%theta_Mloc   =",SIZE(this%theta_Mloc)              
+!     end select        
+       
 !     print*, "[ pf%levels(pf%nlevels)%lev_shape])=", [ pf%levels(pf%nlevels)%lev_shape]
     !> compute initial condition
 !     print*, "pf%levels(pf%nlevels)%lev_shape",pf%levels(pf%nlevels)%lev_shape
@@ -146,10 +163,13 @@ contains
 !     print*, "Before zndarray_destroy a"
 
     !>  Deallocate initial condition and final solution
-    call pizza_zndarray_destroy(y_0)
+!     call pizza_zndarray_destroy(y_0)
+    call pizza_zndsysarray_destroy(y_0)
+    
 !     print*, "Before zndarray_destroy b"
 
-    call pizza_zndarray_destroy(y_end)
+!     call pizza_zndarray_destroy(y_end)
+    call pizza_zndsysarray_destroy(y_end)
 !     print*, "Before pf_pfasst_destroy"
 
     !>  Deallocate pfasst structure

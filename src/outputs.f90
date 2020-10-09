@@ -324,9 +324,9 @@ contains
 
       if ( l_log ) then
          call get_time_series(time, us_Mloc, up_Mloc, om_Mloc, temp_Mloc,  &
+              &               us2_r, up2_r, enstrophy_r, flux_r,           &  
               &               dtemp_Mloc, xi_Mloc, dxi_Mloc, us2_m_Mloc,   &
-              &               up2_m_Mloc, enst_m_Mloc, us2_r, up2_r,       &
-              &               enstrophy_r, flux_r)
+              &               up2_m_Mloc, enst_m_Mloc)
 
          call get_radial_averages(timeAvg_rad, l_stop_time, up_Mloc, temp_Mloc, &
               &                   xi_Mloc, us2_r, up2_r, enstrophy_r, flux_r)
@@ -420,8 +420,8 @@ contains
    end subroutine get_radial_averages
 !------------------------------------------------------------------------------
    subroutine get_time_series(time, us_Mloc, up_Mloc, om_Mloc, temp_Mloc, &
-              &               dtemp_Mloc, xi_Mloc, dxi_Mloc, us2_m, up2_m,&
-              &               enstrophy_m, us2_r, up2_r, enstrophy, flux_r)
+              &               us2_r, up2_r, enstrophy, flux_r,&
+              &               dtemp_Mloc, xi_Mloc, dxi_Mloc, us2_m, up2_m,enstrophy_m)
 
       !-- Input variables
       real(cp),    intent(in) :: time
@@ -429,12 +429,12 @@ contains
       complex(cp), intent(in) :: up_Mloc(nMstart:nMstop,n_r_max)
       complex(cp), intent(in) :: om_Mloc(nMstart:nMstop,n_r_max)
       complex(cp), intent(in) :: temp_Mloc(nMstart:nMstop,n_r_max)
-      complex(cp), intent(in) :: dtemp_Mloc(nMstart:nMstop,n_r_max)
-      complex(cp), intent(in) :: xi_Mloc(nMstart:nMstop,n_r_max)
-      complex(cp), intent(in) :: dxi_Mloc(nMstart:nMstop,n_r_max)
-      real(cp),    intent(in) :: us2_m(nMstart:nMstop)
-      real(cp),    intent(in) :: up2_m(nMstart:nMstop)
-      real(cp),    intent(in) :: enstrophy_m(nMstart:nMstop)
+      complex(cp), intent(in),optional :: dtemp_Mloc(nMstart:nMstop,n_r_max)
+      complex(cp), intent(in),optional :: xi_Mloc(nMstart:nMstop,n_r_max)
+      complex(cp), intent(in),optional :: dxi_Mloc(nMstart:nMstop,n_r_max)
+      real(cp),    intent(in),optional :: us2_m(nMstart:nMstop)
+      real(cp),    intent(in),optional :: up2_m(nMstart:nMstop)
+      real(cp),    intent(in),optional :: enstrophy_m(nMstart:nMstop)
 
       !-- Output variables
       real(cp), intent(out) :: us2_r(n_r_max)
@@ -480,31 +480,36 @@ contains
             if ( l_heat ) then
                buo_power(n_r)=buo_power(n_r)+cc22real(us_Mloc(n_m,n_r), &
                &                                      temp_Mloc(n_m,n_r), m)
-
-               nu_vol_r(n_r) =nu_vol_r(n_r)+cc2real(dtemp_Mloc(n_m,n_r),m)&
-               &              +real(m,cp)*real(m,cp)*or2(n_r)*            &
-               &                             cc2real(temp_Mloc(n_m,n_r),m)
-
-               flux_r(n_r)   =flux_r(n_r)+cc22real(us_Mloc(n_m,n_r), &
-               &                                   temp_Mloc(n_m,n_r), m)
+               if (present(dtemp_Mloc)) then
+                  nu_vol_r(n_r) =nu_vol_r(n_r)+cc2real(dtemp_Mloc(n_m,n_r),m)&
+                  &              +real(m,cp)*real(m,cp)*or2(n_r)*            &
+                  &                             cc2real(temp_Mloc(n_m,n_r),m)
+               
+                  flux_r(n_r)   =flux_r(n_r)+cc22real(us_Mloc(n_m,n_r), &
+                  &                                   temp_Mloc(n_m,n_r), m)
+               endif
                E_temp_radial(n_r)   =E_temp_radial(n_r)+cc2real(temp_Mloc(n_m,n_r), m)
             end if
 
             if ( l_chem ) then
-               chem_power(n_r)=chem_power(n_r)+cc22real(us_Mloc(n_m,n_r), &
-               &                                        xi_Mloc(n_m,n_r), m)
+               if (present(xi_Mloc)) then
+                  chem_power(n_r)=chem_power(n_r)+cc22real(us_Mloc(n_m,n_r), &
+                  &                                        xi_Mloc(n_m,n_r), m)
 
-               sh_vol_r(n_r) =sh_vol_r(n_r)+cc2real(dxi_Mloc(n_m,n_r),m)  &
-               &              +real(m,cp)*real(m,cp)*or2(n_r)*            &
-               &                             cc2real(xi_Mloc(n_m,n_r),m)
+                  sh_vol_r(n_r) =sh_vol_r(n_r)+cc2real(dxi_Mloc(n_m,n_r),m)  &
+                  &              +real(m,cp)*real(m,cp)*or2(n_r)*            &
+                  &                             cc2real(xi_Mloc(n_m,n_r),m)
+               endif
             end if
 
             if ( m == 0 ) then
                up2_axi_r(n_r)=up2_axi_r(n_r)+cc2real(up_Mloc(n_m,n_r),m)
                pump(n_r)     =pump(n_r)+cc2real(up_Mloc(n_m,n_r),m)
                if ( l_heat ) then
+               if (present(dtemp_Mloc)) then
                   flux_r(n_r)   =flux_r(n_r)-TdiffFac*real(dtemp_Mloc(n_m,n_r))-&
                   &              TdiffFac*dtcond(n_r)
+               endif
                end if
             end if
          end do
@@ -532,9 +537,10 @@ contains
       !-------
       !-- Lengthscales
       !-------
-      call get_lengthscales(us2_m, up2_m, enstrophy_m, dlus_peak, dlekin_peak,  &
-           &                dlvort_peak, dlekin_int)
-
+      IF (present(us2_m)) then
+         call get_lengthscales(us2_m, up2_m, enstrophy_m, dlus_peak, dlekin_peak,  &
+              &                dlvort_peak, dlekin_int)
+      endif
       if ( Key_Pizza == 0 ) then
 
          !-----
@@ -699,10 +705,12 @@ contains
             end if
 
          end if
-         write(n_lscale_file, '(1P, es20.12, 5es16.8)') time, dlus_peak,         &
-         &                                              dlekin_peak, dlvort_peak,&
-         &                                              dlekin_int, dl_diss
-
+         if(present(us2_m)) then
+            write(n_lscale_file, '(1P, es20.12, 5es16.8)') time, dlus_peak,         &
+            &                                              dlekin_peak, dlvort_peak,&
+            &                                              dlekin_int, dl_diss
+         endif
+         
          ! At this stage multiply us2_r, up2_r and enstrophy by r(:) and height(:)
          us2_r(:)    =us2_r(:)*r(:)*height(:)
          up2_r(:)    =up2_r(:)*r(:)*height(:)
@@ -729,12 +737,13 @@ contains
          tBot = round_off(tBot)
 
          !-- Classical top and bottom Nusselt number
-         NuTop = one+real(dtemp_Mloc(n_m0,1))/dtcond(1)
-         NuBot = one+real(dtemp_Mloc(n_m0,n_r_max))/dtcond(n_r_max)
-         !&       (dtcond(n_r_max)-tadvz_fac*beta(n_r_max)*tcond(n_r_max))
-         NuTop = round_off(NuTop)
-         NuBot = round_off(NuBot)
-
+         if (present(dtemp_Mloc)) then
+            NuTop = one+real(dtemp_Mloc(n_m0,1))/dtcond(1)
+            NuBot = one+real(dtemp_Mloc(n_m0,n_r_max))/dtcond(n_r_max)
+            !&       (dtcond(n_r_max)-tadvz_fac*beta(n_r_max)*tcond(n_r_max))
+            NuTop = round_off(NuTop)
+            NuBot = round_off(NuBot)
+         endif
          !-- Volume-based Nusselt number
          Nu_vol = rInt_R(nu_vol_r, r, rscheme)
          nu_cond_r(:)=dtcond(:)*dtcond(:)*height(:)*r(:)
@@ -767,12 +776,14 @@ contains
          Nu_int = round_off(Nu_int)
 
          !-- Mid-shell temperature gradient
-         beta_t = dtcond(int(n_r_max/2))+real(dtemp_Mloc(n_m0,int(n_r_max/2)))
-         beta_t = round_off(beta_t)
+         if (present(dtemp_Mloc)) then
+            beta_t = dtcond(int(n_r_max/2))+real(dtemp_Mloc(n_m0,int(n_r_max/2)))
+            beta_t = round_off(beta_t)
 
-         write(n_heat_file, '(1P, ES20.12, 7ES16.8)') time, NuTop, NuBot,   &
-         &                                            Nu_vol, Nu_int, tTop, &
-         &                                            tBot, beta_t
+            write(n_heat_file, '(1P, ES20.12, 7ES16.8)') time, NuTop, NuBot,   &
+            &                                            Nu_vol, Nu_int, tTop, &
+            &                                            tBot, beta_t
+         endif
       end if
 
       if ( l_rank_has_m0 .and. l_chem ) then
@@ -781,34 +792,36 @@ contains
          !------
 
          !-- Top and bottom temperatures
-         n_m0 = m2idx(0)
-         xiTop = real(xi_Mloc(n_m0,1))+xicond(1)
-         xiBot = real(xi_Mloc(n_m0,n_r_max))+xicond(n_r_max)
-         xiTop = round_off(xiTop)
-         xiBot = round_off(xiBot)
+         if (present(xi_Mloc)) then
+            n_m0 = m2idx(0)
+            xiTop = real(xi_Mloc(n_m0,1))+xicond(1)
+            xiBot = real(xi_Mloc(n_m0,n_r_max))+xicond(n_r_max)
+            xiTop = round_off(xiTop)
+            xiBot = round_off(xiBot)
 
-         !-- Classical top and bottom Sherwood number
-         ShTop = one+real(dxi_Mloc(n_m0,1))/dxicond(1)
-         ShBot = one+real(dxi_Mloc(n_m0,n_r_max))/dxicond(n_r_max)
-         !&       (dtcond(n_r_max)-tadvz_fac*beta(n_r_max)*tcond(n_r_max))
-         ShTop = round_off(ShTop)
-         ShBot = round_off(ShBot)
+            !-- Classical top and bottom Sherwood number
+            ShTop = one+real(dxi_Mloc(n_m0,1))/dxicond(1)
+            ShBot = one+real(dxi_Mloc(n_m0,n_r_max))/dxicond(n_r_max)
+            !&       (dtcond(n_r_max)-tadvz_fac*beta(n_r_max)*tcond(n_r_max))
+            ShTop = round_off(ShTop)
+            ShBot = round_off(ShBot)
 
-         !-- Volume-based Nusselt number
-         Sh_vol = rInt_R(sh_vol_r, r, rscheme)
-         sh_cond_r(:)=dxicond(:)*dxicond(:)*height(:)*r(:)
-         Sh_vol = one+Sh_vol/rInt_R(sh_cond_r, r, rscheme)
-         Sh_vol = round_off(Sh_vol)
+            !-- Volume-based Nusselt number
+            Sh_vol = rInt_R(sh_vol_r, r, rscheme)
+            sh_cond_r(:)=dxicond(:)*dxicond(:)*height(:)*r(:)
+            Sh_vol = one+Sh_vol/rInt_R(sh_cond_r, r, rscheme)
+            Sh_vol = round_off(Sh_vol)
 
-         !-- Mid-shell temperature gradient
-         beta_xi = dxicond(int(n_r_max/2))+real(dxi_Mloc(n_m0,int(n_r_max/2)))
-         beta_xi = round_off(beta_xi)
+            !-- Mid-shell temperature gradient
+            beta_xi = dxicond(int(n_r_max/2))+real(dxi_Mloc(n_m0,int(n_r_max/2)))
+            beta_xi = round_off(beta_xi)
 
-         write(n_chem_file, '(1P, ES20.12, 6ES16.8)') time, ShTop, ShBot,   &
-         &                                            Sh_vol, xiTop,        &
-         &                                            xiBot, beta_xi
+            write(n_chem_file, '(1P, ES20.12, 6ES16.8)') time, ShTop, ShBot,   &
+            &                                            Sh_vol, xiTop,        &
+            &                                            xiBot, beta_xi
+         endif
       end if
-
+         
    end subroutine get_time_series
 !------------------------------------------------------------------------------
    subroutine get_corr(time, us_Mloc, up_Mloc, us2_r, up2_r)

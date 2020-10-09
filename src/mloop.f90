@@ -66,8 +66,8 @@ contains
          if (l_vort) then  
             if ( l_direct_solve ) then
                call update_om_coll_smat(psi_Mloc, om_Mloc, dom_Mloc, us_Mloc,    &
-                    &                   up_Mloc, buo_Mloc, dpsidt, vp_bal,       &
-                    &                   vort_bal, tscheme, lMat, timers)
+                    &                   up_Mloc, buo_Mloc,lMat, dpsidt, vp_bal,       &
+                    &                   vort_bal, timers=timers, tscheme=tscheme )
             else
                call update_om_coll_dmat(psi_Mloc, om_Mloc, dom_Mloc, us_Mloc,    &
                     &                   up_Mloc, buo_Mloc, dpsidt, vp_bal,       &
@@ -100,6 +100,7 @@ contains
               &                        up_Mloc, om_Mloc, dVsT_Mloc, dVsXi_Mloc,&
               &                        dVsOm_Mloc, buo_Mloc, dTdt, dxidt,      &
               &                        dpsidt, tscheme, vp_bal, vort_bal)
+!     use truncation, only: idx2m!, m2idx
 
       !-- Input variables
       class(type_tscheme), intent(in) :: tscheme
@@ -121,6 +122,7 @@ contains
       type(vp_bal_type),   intent(inout) :: vp_bal
       type(vort_bal_type), intent(inout) :: vort_bal
 
+!       integer :: n_m,n_r,m
 
       if ( l_cheb_coll ) then
          if ( l_heat ) call finish_exp_temp_coll(temp_Mloc, us_Mloc,    &
@@ -138,7 +140,9 @@ contains
                call finish_exp_psi_coll_dmat(us_Mloc, up_Mloc, om_Mloc, dVsOm_Mloc, &
                     &                      buo_Mloc,dpsidt%expl(:,:,tscheme%istage),&
                     &                        vort_bal)
-            endif        
+            endif     
+    
+            
          end if
       else
          if ( l_heat ) call finish_exp_temp_int(temp_Mloc, psi_Mloc, dVsT_Mloc,&

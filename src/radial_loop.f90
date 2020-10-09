@@ -123,7 +123,7 @@ contains
             end if
             usom = usom+cc22real(us_fluct,om_Rloc(n_m,n_r),m)
          end do
-
+!             print*,"usom(nr=,",n_r,")=",usom
          !-----------------
          !-- Bring data on the grid
          !-----------------
