@@ -179,6 +179,7 @@ contains
     allocate(this%u_phi_m_Rloc (n_m_max,nRstart:nRstop))
     allocate(this%omega_m_Rloc (n_m_max,nRstart:nRstop))
     allocate(this%theta_m_Rloc   (n_m_max,nRstart:nRstop))
+    allocate(this%xi_m_Rloc   (n_m_max,nRstart:nRstop))
     
     allocate(this%u_s_Rloc     (n_phi_max,nRstart:nRstop))
     allocate(this%u_phi_Rloc   (n_phi_max,nRstart:nRstop))
