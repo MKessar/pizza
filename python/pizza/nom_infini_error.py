@@ -197,7 +197,7 @@ class maxerror_instdef(PizzaSetup):
                 if (abs(f1_r[i,k]))>max_f_real_abs:
                    max_f_real_abs = f1_r[i,k]
 
-        print "max_f_error_real_abs", max_f_error_real_abs
+        #print "max_f_error_real_abs", max_f_error_real_abs
 
         max_f_error_real_rel=max_f_error_real_abs/max_f_real_abs
         #f_error_real_rel=2.0*f2_r
@@ -219,5 +219,5 @@ class maxerror_instdef(PizzaSetup):
 
         #max_f_error_real_rel=max(abs(f1_r - f2_r))
                     
-        print "max_f_error_real_rel", max_f_error_real_rel
+        #print "max_f_error_real_rel", max_f_error_real_rel
         return max_f_error_real_rel        
