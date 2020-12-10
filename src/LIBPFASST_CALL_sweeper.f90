@@ -391,9 +391,9 @@ contains
     integer,             intent(in   ) :: piece  !  Which piece to solve for
     
     complex(pfdp),      pointer :: theta(:,:),omega(:,:)
-    complex(pfdp),      pointer :: u_phi(:,:),u_s(:,:)
+    complex(pfdp),      pointer :: u_phi(:,:),u_s(:,:),xi(:,:)
     complex(pfdp),      pointer :: fvec_theta(:,:),fvec_omega(:,:)
-    complex(pfdp),      pointer :: fvec_u_phi(:,:),fvec_u_s(:,:)
+    complex(pfdp),      pointer :: fvec_u_phi(:,:),fvec_u_s(:,:),fvec_xi(:,:)
 !     integer :: nMstart, nMstop
 !     integer :: n_r_max
 !     integer :: n_phi_max
@@ -419,10 +419,10 @@ contains
 !     theta_Mloc  => get_array2d(y)
 
        omega  => get_array2d(y,1)
-!        psi    => get_array2d(y,2)
        u_phi  => get_array2d(y,2)
        u_s    => get_array2d(y,3)
        theta  => get_array2d(y,4)
+       xi     => get_array2d(y,5)
 !        uphi0  => get_array2d(y,4)
 
 ! 
@@ -438,6 +438,7 @@ contains
        fvec_u_phi => get_array2d(f,2)
        fvec_u_s   => get_array2d(f,3)
        fvec_theta => get_array2d(f,4)
+       fvec_xi    => get_array2d(f,4)
 !     fvec_uphi0 => get_array2d(f,4)
 
 
@@ -445,12 +446,14 @@ contains
     this%fvec_u_phi_Mloc = 0.0_pfdp
     this%fvec_u_s_Mloc   = 0.0_pfdp
     this%fvec_theta_Mloc = 0.0_pfdp
+    this%fvec_xi_Mloc    = 0.0_pfdp
 
 
     this%theta_Mloc   = theta 
     this%omega_Mloc   = omega
     this%u_phi_m_Mloc = u_phi
     this%u_s_m_Mloc   = u_s
+    this%xi_m_Mloc      = xi
 
     select case (piece)
     case (1)  ! Explicit piece
@@ -463,23 +466,24 @@ contains
     call transp_m2r(m2r_fields, this%theta_Mloc, this%theta_m_Rloc)
     call transp_m2r(m2r_fields, this%u_s_m_Mloc, this%u_s_m_Rloc)
     call transp_m2r(m2r_fields, this%u_phi_m_Mloc, this%u_phi_m_Rloc)
+    call transp_m2r(m2r_fields, this%xi_m_Mloc, this%xi_m_Rloc)
 
     call radial_loop(this%u_s_m_Rloc, this%u_phi_m_Rloc, this%omega_m_Rloc, this%theta_m_Rloc, this%xi_m_Rloc,   &
                  &           this%dtempdt_Rloc, this%dVsT_Rloc, this%dxidt_Rloc, this%dVsXi_Rloc, &
                  &           this%dpsidt_Rloc, this%dVsOm_Rloc, this%dtr_Rloc, this%dth_Rloc)
 
-!      if ( l_heat ) then
+     if ( l_heat ) then
         call transp_r2m(r2m_fields, this%dtempdt_Rloc, &
-                       &          this%fvec_theta_Mloc)
+                       &          this%fvec_xi_Mloc)
 
         call transp_r2m(r2m_fields, this%dVsT_Rloc, this%dVsT_Mloc)
-!     end if
+    end if
     
-!     if ( l_chem ) then
-!        call transp_r2m(r2m_fields, dxidt_Rloc, &
-!                       &          dxidt%expl(:,:,tscheme%istage))
-!        call transp_r2m(r2m_fields, dVsXi_Rloc, dVsXi_Mloc)
-!     end if
+    if ( l_chem ) then
+       call transp_r2m(r2m_fields, this%dxidt_Rloc, &
+                      &          this%fvec_xi_Mloc)
+       call transp_r2m(r2m_fields, this%dVsXi_Rloc, this%dVsXi_Mloc)
+    end if
     if (l_vort) then
 
     call transp_r2m(r2m_fields,  this%dpsidt_Rloc, &
@@ -496,11 +500,20 @@ contains
     call finish_exp_temp_coll(this%theta_Mloc, this%u_s_m_Mloc,    &
          &                    this%dVsT_Mloc, this%buo_Mloc,    &
          &                    this%fvec_theta_Mloc)
+    if ( l_chem ) then 
+       call finish_exp_xi_coll(this%xi_m_Mloc, this%u_s_m_Mloc, this%dVsXi_Mloc, &
+            &                  this%buo_Mloc,                     &
+            &                  this%fvec_xi_Mloc)
+    endif         
+    
+
+
     if (l_vort) then
        call finish_exp_psi_coll_smat(this%u_s_m_Mloc, this%dVsOm_Mloc, this%buo_Mloc,  &
             &                        this%fvec_omega_Mloc)     
     endif     
-
+    
+    
       do n_r=1,n_r_max
          do n_m=nMstart,nMstop
             m = idx2m(n_m)
@@ -509,9 +522,7 @@ contains
                this%fvec_u_phi_Mloc(n_m,n_r)   = this%fvec_omega_Mloc(n_m,n_r)
 
             end if
-!             if ( m == 3 ) then
-!             print*,"this%fvec_omega_Mloc(m=3,n_r=",n_r,")=",this%fvec_omega_Mloc(n_m,n_r)
-!             endif
+
          end do
       end do 
       
@@ -519,33 +530,23 @@ contains
           call get_temp_rhs_imp_coll(this%theta_Mloc, this%tmphat_Mloc, this%tmphat_bis_Mloc, &
               &                     this%fvec_theta_Mloc, .true.)
 
+          call get_xi_rhs_imp_coll(this%xi_m_Mloc, this%tmphat_Mloc, this%tmphat_bis_Mloc, &
+              &                   this%fvec_xi_Mloc, .true.)
+              
           if (l_vort) then
              call get_psi_rhs_imp_coll_smat(this%u_s_m_Mloc, this%u_phi_m_Mloc, this%omega_Mloc, this%tmphat_Mloc,    &
                   &                         this%tmphat_bis_Mloc,         &
                   &                         this%fvec_omega_Mloc,l_calc_lin_rhs=.true.)
           endif
 
-!       do n_r=1,n_r_max
-!          do n_m=nMstart,nMstop
-!             m = idx2m(n_m)
-!             if ( m == 3 ) then
-! !             print*,"this%fvec_omega_Mloc(m=3,n_r=",n_r,")=",this%fvec_omega_Mloc(n_m,n_r)
-! !             print*,"this%fvec_omega_Mloc(m=3,n_r=",n_r,")=",this%fvec_omega_Mloc(n_m,n_r)
-! !             print*,"this%fvec_omega_Mloc(m=3,n_r=",n_r,")=",this%fvec_omega_Mloc(n_m,n_r)
-!             endif
-!          end do
-!       end do 
+          
       do n_r=1,n_r_max
          do n_m=nMstart,nMstop
             m = idx2m(n_m)
             if ( m == 0 ) then
             
                this%fvec_u_phi_Mloc(n_m,n_r)   = this%fvec_omega_Mloc(n_m,n_r)
-!                print*,"this%fvec_omega_Mloc(m=3,n_r=",n_r,")=",this%fvec_omega_Mloc(n_m,n_r)
-               
-!                this%fvec_omega_Mloc(n_m,n_r) = 0.0_8
-!                this%fvec_omega_Mloc(n_m,n_r) = 0.0_8
-!                this%fvec_omega_Mloc(n_m,n_r) = 0.0_8
+
                
             end if
          end do
@@ -565,6 +566,7 @@ contains
     fvec_omega = this%fvec_omega_Mloc
     fvec_u_phi = this%fvec_u_phi_Mloc
     fvec_u_s   = this%fvec_u_s_Mloc
+    fvec_xi    = this%fvec_xi_Mloc
 
 
   end subroutine f_eval
@@ -592,9 +594,9 @@ contains
     class(pf_encap_t),   intent(inout) :: f       !  The function value
     integer,             intent(in   ) :: piece   !  Designates which piece to solve for (here implicit)
 
-    complex(pfdp),         pointer :: omega(:,:), u_phi(:,:), theta(:,:), u_s(:,:)
-    complex(pfdp),         pointer :: fvec_omega(:,:), fvec_u_phi(:,:),fvec_u_s(:,:), fvec_theta(:,:)
-    complex(pfdp),         pointer :: rhs_omega(:,:), rhs_u_phi(:,:),rhs_u_s(:,:), rhs_theta(:,:)
+    complex(pfdp),         pointer :: omega(:,:), u_phi(:,:), theta(:,:), u_s(:,:), xi(:,:)
+    complex(pfdp),         pointer :: fvec_omega(:,:), fvec_u_phi(:,:),fvec_u_s(:,:), fvec_theta(:,:), fvec_xi(:,:)
+    complex(pfdp),         pointer :: rhs_omega(:,:), rhs_u_phi(:,:),rhs_u_s(:,:), rhs_theta(:,:), rhs_xi(:,:)
     integer :: m,n_m,n_r,n_r_out
     real(pfdp) ::h2,  dm2
     integer             :: n_r_max
@@ -615,37 +617,30 @@ contains
        u_phi  => get_array2d(y,2)
        u_s    => get_array2d(y,3)
        theta  => get_array2d(y,4)
+       xi     => get_array2d(y,5)
 
-!     print*,"size y",SIZE(y%flatarray),"size f   =",SIZE(f%flatarray)
-!     select type (y)
-!     class is (pizza_zndsysarray_t)
-!               print*,"size y%arr_shape",y%arr_shape
-!               print*,"size y%flatarray",SIZE(y%flatarray)
-!               
-!     end select           
-!               
-!     print*,"size omega",SIZE(omega),"this%omega_Mloc   =",SIZE(this%omega_Mloc)
-!     print*,"size u_phi",SIZE(u_phi),"this%u_phi_m_Mloc =",SIZE(this%u_phi_m_Mloc)
-!     print*,"size u_s"  ,SIZE(u_s)  ,"this%u_s_m_Mloc   =",SIZE(this%u_s_m_Mloc)
-!     print*,"size theta",SIZE(theta),"this%theta_Mloc   =",SIZE(this%theta_Mloc)
-       
+     
        fvec_omega => get_array2d(f,1)
        fvec_u_phi => get_array2d(f,2)
        fvec_u_s   => get_array2d(f,3)
        fvec_theta => get_array2d(f,4)
+       fvec_xi    => get_array2d(f,5)
        
        rhs_omega => get_array2d(rhs,1)
        rhs_u_phi => get_array2d(rhs,2)
        rhs_u_s   => get_array2d(rhs,3)
        rhs_theta => get_array2d(rhs,4)
+       rhs_xi    => get_array2d(rhs,5)
        
 
        this%omega_Mloc   = omega
        this%u_phi_m_Mloc = u_phi
        this%u_s_m_Mloc   = u_s
        this%theta_Mloc   = theta 
+       this%xi_Mloc      = xi 
        
 
+       this%rhsvec_xi_Mloc    = rhs_xi 
        this%rhsvec_theta_Mloc = rhs_theta 
        this%rhsvec_u_phi_Mloc = rhs_u_phi 
        this%rhsvec_u_s_Mloc   = rhs_u_s 
@@ -655,23 +650,24 @@ contains
        this%fvec_u_phi_Mloc   = fvec_u_phi 
        this%fvec_u_s_Mloc     = fvec_u_s 
        this%fvec_theta_Mloc   = fvec_theta 
+       this%fvec_xi_Mloc      = fvec_xi 
    
       do n_r=1,n_r_max
          do n_m=nMstart,nMstop
             m = idx2m(n_m)
             if ( m == 0 ) then
             
-!                this%fvec_uphi0_Mloc(n_m,n_r)=this%fvec_omega_Mloc(n_m,n_r)
-               
-!                this%fvec_omega_Mloc(n_m,n_r)   = this%fvec_u_phi_Mloc(n_m,n_r)
                this%rhsvec_omega_Mloc(n_m,n_r) = this%rhsvec_u_phi_Mloc(n_m,n_r)
                
             end if
          end do
       end do    
 
-       call update_temp_co(this%theta_Mloc, this%tmphat_Mloc, this%tmphat_bis_Mloc, dTdt, &
+       call update_temp_co(this%theta_Mloc, this%tmphat_Mloc, this%buo_Mloc, dTdt, &
             &              lMat, l_log_next,dtq=dtq,work_Mloc_pfasst=this%rhsvec_theta_Mloc,int_mat=i_substep )
+
+       call update_xi_co(xi_Mloc, this%tmphat_Mloc, this%buo_Mloc, dxidt, &
+              &          lMat, l_log_next,dtq=dtq,work_Mloc_pfasst=this%rhsvec_xi_Mloc,int_mat=i_substep )     
        if (l_vort) then
 
           call update_om_coll_smat(this%psi_Mloc, this%omega_Mloc, this%tmphat_Mloc, this%u_s_m_Mloc, this%u_phi_m_Mloc, &
@@ -679,8 +675,9 @@ contains
                  &                   lMat, dtq=dtq,work_Mloc_pfasst=this%rhsvec_omega_Mloc,int_mat=i_substep )
        endif
        !  The function is easy to derive
-       this%fvec_theta_Mloc = (this%theta_Mloc - this%rhsvec_theta_Mloc) / dtq
-       this%fvec_u_s_Mloc = 0.0
+       this%fvec_theta_Mloc = ( this%theta_Mloc - this%rhsvec_theta_Mloc ) / dtq
+       this%fvec_xi_Mloc    = ( this%xi_m_Mloc  - this%rhsvec_xi_Mloc    ) / dtq
+       this%fvec_u_s_Mloc   = 0.0
 !        this%fvec_psi_Mloc = 0.0
        
        this%fvec_omega_Mloc = (this%omega_Mloc - this%rhsvec_omega_Mloc) / dtq
