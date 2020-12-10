@@ -64,7 +64,7 @@ contains
    end subroutine finalize_xi_coll
 !------------------------------------------------------------------------------
    subroutine update_xi_co(xi_Mloc, dxi_Mloc, buo_Mloc, dxidt, &
-              &              tscheme, lMat, l_log_next)
+              &              tscheme, lMat, l_log_next,dtq,work_Mloc_pfasst,int_mat)
 
       !-- Input variables
       class(type_tscheme), intent(in) :: tscheme
@@ -80,32 +80,57 @@ contains
       !-- Local variables
       logical :: l_init_buo
       integer :: n_r, n_m, n_r_out, m
-
+      
+      if (present(int_mat)) then
+         i_mat=int_mat
+      else
+         i_mat=1
+      endif
+      
       if ( lMat ) lXiMat(:)=.false.
+  
+      if (present(dtq)) then
+      
+          work_Mloc=work_Mloc_pfasst
+      
+      else
+           !-- Calculation of the implicit part
+           call get_xi_rhs_imp_coll(xi_Mloc, dxi_Mloc,               &
+                &                   dxidt%old(:,:,tscheme%istage),   &
+                &                   dxidt%impl(:,:,tscheme%istage),  &
+                &                   tscheme%l_imp_calc_rhs(tscheme%istage))
+      
+           !-- Now assemble the right hand side and store it in work_Mloc
+           call tscheme%set_imex_rhs(work_Mloc, dxidt, nMstart, nMstop, n_r_max)
 
-      !-- Calculation of the implicit part
-      call get_xi_rhs_imp_coll(xi_Mloc, dxi_Mloc,               &
-           &                   dxidt%old(:,:,tscheme%istage),   &
-           &                   dxidt%impl(:,:,tscheme%istage),  &
-           &                   tscheme%l_imp_calc_rhs(tscheme%istage))
-
-      !-- Now assemble the right hand side and store it in work_Mloc
-      call tscheme%set_imex_rhs(work_Mloc, dxidt, nMstart, nMstop, n_r_max)
-
+      endif
+      
       do n_m=nMstart, nMstop
 
          m = idx2m(n_m)
-         
-         if ( .not. lXimat(n_m) ) then
-#ifdef WITH_PRECOND_S
-            call get_xiMat(tscheme, m, xiMat(:,:,n_m), xiPivot(:,n_m), &
-                 &         xiMat_fac(:,n_m))
-#else
-            call get_xiMat(tscheme, m, xiMat(:,:,n_m), xiPivot(:,n_m))
-#endif
-            lXimat(n_m)=.true.
-         end if
+         if (present(dtq)) then
 
+            if ( .not. lXimat(n_m) ) then
+#ifdef WITH_PRECOND_S
+               call get_xiMat(tscheme, m, xiMat(:,:,n_m), xiPivot(:,n_m), &
+                    &         xiMat_fac(:,n_m),dtq=dtq)
+#else
+               call get_xiMat(tscheme, m, xiMat(:,:,n_m), xiPivot(:,n_m),dtq=dtq)
+#endif
+               lXimat(n_m)=.true.
+            end if
+         else
+            if ( .not. lXimat(n_m) ) then
+#ifdef WITH_PRECOND_S
+               call get_xiMat(tscheme, m, xiMat(:,:,n_m), xiPivot(:,n_m), &
+                    &         xiMat_fac(:,n_m))
+#else
+               call get_xiMat(tscheme, m, xiMat(:,:,n_m), xiPivot(:,n_m))
+#endif
+               lXimat(n_m)=.true.
+            end if
+         endif
+         
          !-- Inhomogeneous B.Cs (if not zero)
          rhs(1)      =topxi_Mloc(n_m)
          rhs(n_r_max)=botxi_Mloc(n_m)
@@ -145,14 +170,20 @@ contains
          else
             l_init_buo = .true.
          end if
-         call tscheme%assemble_implicit_buo(buo_Mloc,xi_Mloc , dxidt,        &
-              &                             ChemFac, rgrav, nMstart, nMstop, &
-              &                             n_r_max, l_init_buo)
+         if (present(tscheme)) then 
+    
+            call tscheme%assemble_implicit_buo(buo_Mloc,xi_Mloc , dxidt,        &
+                 &                             ChemFac, rgrav, nMstart, nMstop, &
+                 &                             n_r_max, l_init_buo)
+         endif        
       end if
 
       !-- Roll the arrays before filling again the first block
-      call tscheme%rotate_imex(dxidt, nMstart, nMstop, n_r_max)
+      if (present(tscheme)) then 
 
+         call tscheme%rotate_imex(dxidt, nMstart, nMstop, n_r_max)
+      endif
+      
       !-- In case log is needed on the next iteration, recalculate dT/dr
       if ( l_log_next ) then
          call get_dr(xi_Mloc, dxi_Mloc, nMstart, nMstop, n_r_max, rscheme)
