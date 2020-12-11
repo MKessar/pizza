@@ -19,8 +19,9 @@ module pf_my_sweeper
   use parallel_mod
 !   use pizza_zdnarray
   use pizza_zndsysarray
-  use update_xi_coll, only: update_temp_co, get_temp_rhs_imp_coll,finish_exp_temp_coll
-  use update_temp_coll, only: update_xi_co, get_xi_rhs_imp_coll,finish_exp_xi_coll
+  use update_temp_coll, only: update_temp_co, get_temp_rhs_imp_coll,finish_exp_temp_coll
+!   use update_xi_coll, only: update_temp_co, get_temp_rhs_imp_coll,finish_exp_temp_coll
+  use update_xi_coll, only: update_xi_co, get_xi_rhs_imp_coll,finish_exp_xi_coll
    use update_psi_coll_smat, only: update_om_coll_smat, finish_exp_psi_coll_smat
   use update_psi_coll_smat, only: get_psi_rhs_imp_coll_smat
   
