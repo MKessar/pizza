@@ -54,7 +54,7 @@ contains
     integer, intent(in) :: level_index
 
 !     complex(pfdp), pointer :: y_end(:,:)!,y_ex(:,:)
-    complex(pfdp),      pointer :: theta(:,:),omega(:,:)
+    complex(pfdp),      pointer :: theta(:,:),omega(:,:),xi(:,:)
     complex(pfdp),      pointer :: psi(:,:),uphi0(:,:)
     complex(pfdp),      pointer :: u_phi(:,:),u_s(:,:)
     complex(pfdp), allocatable  :: Temp_Mloc(:,:)
