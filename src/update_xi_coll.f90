@@ -64,7 +64,7 @@ contains
    end subroutine finalize_xi_coll
 !------------------------------------------------------------------------------
    subroutine update_xi_co(xi_Mloc, dxi_Mloc, buo_Mloc, dxidt, &
-              &              tscheme, lMat, l_log_next,dtq,work_Mloc_pfasst,int_mat)
+              &               lMat, l_log_next,tscheme, dtq,work_Mloc_pfasst,int_mat)
 
       !-- Input variables
       class(type_tscheme),optional, intent(in) :: tscheme
