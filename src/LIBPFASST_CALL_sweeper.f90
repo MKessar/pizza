@@ -64,7 +64,7 @@ module pf_my_sweeper
      complex(pfdp), allocatable :: rhsvec_u_s_Mloc(:,:)     !u_phi velocity in complex space
      complex(pfdp), allocatable :: rhsvec_u_phi_Mloc(:,:)     !u_phi velocity in complex space
      complex(pfdp), allocatable :: rhsvec_omega_Mloc(:,:)     !u_phi velocity in complex space
-!      complex(pfdp), allocatable :: rhsvec_uphi0_Mloc(:,:)     !u_phi velocity in complex space
+!      complex(pfdp), allocatable :: rhsvec_uphi0_Mloc(:,:)     !u_phi velocity in complex space 
      real(pfdp), allocatable :: u_s_Rloc(:,:)           ! u_s velocity in real space
      real(pfdp), allocatable :: u_phi_Rloc(:,:)         !u_phi velocity in real space
      real(pfdp), allocatable :: om_Rloc(:,:)            !u_phi velocity in real space
@@ -83,6 +83,7 @@ module pf_my_sweeper
      complex(pfdp), allocatable :: dVsOm_Rloc(:,:)     ! used for operator in spectral space
      complex(pfdp), allocatable :: dVsOm_Mloc(:,:)     ! used for operator in spectral space
      complex(pfdp), allocatable :: dVsT_Mloc(:,:)     ! used for operator in spectral space
+     complex(pfdp), allocatable :: dVsXi_Mloc(:,:)     ! used for operator in spectral space
      complex(pfdp), allocatable :: buo_Mloc(:,:)     ! used for operator in spectral space
      complex(pfdp), allocatable :: tmphat_Mloc(:,:)     ! used for operator in spectral space
      complex(pfdp), allocatable :: tmphat_bis_Mloc(:,:) ! used for operator in spectral space
@@ -247,9 +248,11 @@ contains
     this%dVsOm_Rloc   = 0.0
     allocate(this%dVsOm_Mloc   (nMstart:nMstop,n_r_max))
     allocate(this%dVsT_Mloc    (nMstart:nMstop,n_r_max))
+    allocate(this%dVsXi_Mloc    (nMstart:nMstop,n_r_max))
     allocate(this%buo_Mloc     (nMstart:nMstop,n_r_max))
     this%dVsOm_Mloc   = 0.0
     this%dVsT_Mloc    = 0.0
+    this%dVsXi_Mloc   = 0.0
     this%buo_Mloc     = 0.0
     
     call transp_m2r(m2r_fields, this%u_s_m_Mloc, this%u_s_m_Rloc)
@@ -685,7 +688,6 @@ contains
        this%fvec_theta_Mloc = ( this%theta_Mloc - this%rhsvec_theta_Mloc ) / dtq
        this%fvec_xi_Mloc    = ( this%xi_m_Mloc  - this%rhsvec_xi_Mloc    ) / dtq
        this%fvec_u_s_Mloc   = 0.0
-!        this%fvec_psi_Mloc = 0.0
        
        this%fvec_omega_Mloc = (this%omega_Mloc - this%rhsvec_omega_Mloc) / dtq
 
@@ -711,10 +713,7 @@ contains
          end do
       end do    
 
-!        this%fvec_uphi0_Mloc = (this%uphi0_Mloc - this%rhsvec_uphi0_Mloc) / dtq
-
-
-  x_i_Mloc
+  
        fvec_xi = this%fvec_xi_Mloc
        fvec_theta = this%fvec_theta_Mloc
        fvec_omega = this%fvec_omega_Mloc
