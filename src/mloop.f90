@@ -62,7 +62,7 @@ contains
          if ( l_heat ) call update_temp_co(temp_Mloc, dtemp_Mloc, buo_Mloc, &
                             &              dTdt, lMat, l_log_next, tscheme)
          if ( l_chem ) call update_xi_co(xi_Mloc, dxi_Mloc, buo_Mloc, &
-                            &            dxidt, tscheme, lMat, l_log_next)
+                            &            dxidt, lMat, l_log_next, tscheme)
          if (l_vort) then  
             if ( l_direct_solve ) then
                call update_om_coll_smat(psi_Mloc, om_Mloc, dom_Mloc, us_Mloc,    &
