@@ -4,7 +4,7 @@ module update_xi_coll
    use mem_alloc, only: bytes_allocated
    use constants, only: one, zero, four, ci
    use namelists, only: kbott, ktopt, tadvz_fac, XidiffFac, ChemFac, &
-       &                l_buo_imp, l_heat
+       &                l_buo_imp, l_heat,nnodes
    use radial_functions, only: rscheme, or1, or2, dxicond, rgrav
    use horizontal, only: hdif_xi, botxi_Mloc, topxi_Mloc
    use blocking, only: nMstart, nMstop
@@ -83,6 +83,7 @@ contains
       !-- Local variables
       logical :: l_init_buo
       integer :: n_r, n_m, n_r_out, m
+      integer :: i_mat
       
       if (present(int_mat)) then
          i_mat=int_mat
@@ -113,7 +114,7 @@ contains
          m = idx2m(n_m)
          if (present(dtq)) then
 
-            if ( .not. lXimat(n_m) ) then
+            if ( .not. lXimat(n_m,i_mat) ) then
 #ifdef WITH_PRECOND_S
                call get_xiMat(tscheme, m, xiMat(:,:,n_m,i_mat), xiPivot(:,n_m,i_mat), &
                     &         xiMat_fac(:,n_m,i_mat),dtq=dtq)
@@ -123,7 +124,7 @@ contains
                lXimat(n_m,i_mat)=.true.
             end if
          else
-            if ( .not. lXimat(n_m) ) then
+            if ( .not. lXimat(n_m,i_mat) ) then
 #ifdef WITH_PRECOND_S
                call get_xiMat(tscheme, m, xiMat(:,:,n_m,i_mat), xiPivot(:,n_m,i_mat), &
                     &         xiMat_fac(:,n_m,i_mat))
@@ -143,11 +144,11 @@ contains
 
 #ifdef WITH_PRECOND_S
          do n_r=1,n_r_max
-            rhs(n_r) = xiMat_fac(n_r,n_m)*rhs(n_r)
+            rhs(n_r) = xiMat_fac(n_r,n_m,i_mat)*rhs(n_r)
          end do
 #endif
 
-         call solve_full_mat(xiMat(:,:,n_m), n_r_max, n_r_max, xiPivot(:, n_m), &
+         call solve_full_mat(xiMat(:,:,n_m,i_mat), n_r_max, n_r_max, xiPivot(:, n_m), &
               &              rhs(:))
 
          do n_r_out=1,rscheme%n_max
