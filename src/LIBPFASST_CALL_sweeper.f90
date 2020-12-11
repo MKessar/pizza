@@ -43,19 +43,23 @@ module pf_my_sweeper
      complex(pfdp), allocatable :: u_s_m_Rloc(:,:)      !u_s velocity in complex space
      complex(pfdp), allocatable :: u_phi_m_Rloc(:,:)    !u_phi velocity in complex space
      complex(pfdp), allocatable :: theta_m_Rloc(:,:)      !u_phi velocity in complex space
+     complex(pfdp), allocatable :: xi_m_Mloc(:,:)      !u_phi velocity in complex space
      complex(pfdp), allocatable :: omega_Mloc(:,:)      !u_phi velocity in complex space
      complex(pfdp), allocatable :: theta_Mloc(:,:)      !u_phi velocity in complex space
+     complex(pfdp), allocatable :: xi_Mloc(:,:)      !u_phi velocity in complex space
      complex(pfdp), allocatable :: psi_Mloc(:,:)      !u_phi velocity in complex space
      complex(pfdp), allocatable :: xi_m_Rloc(:,:)      !u_phi velocity in complex space
      complex(pfdp), allocatable :: omega_m_Rloc(:,:)      !u_phi velocity in complex space
      complex(pfdp), allocatable :: uphi0_Mloc(:,:)      !u_phi velocity in complex space
      complex(pfdp), allocatable :: fvec_omega_Mloc(:,:)       !u_phi velocity in complex space
      complex(pfdp), allocatable :: fvec_theta_Mloc(:,:)       !u_phi velocity in complex space
+     complex(pfdp), allocatable :: fvec_xi_Mloc(:,:)       !u_phi velocity in complex space
 !      complex(pfdp), allocatable :: fvec_psi_Mloc(:,:)       !u_phi velocity in complex space
      complex(pfdp), allocatable :: fvec_u_s_Mloc(:,:)       !u_phi velocity in complex space
      complex(pfdp), allocatable :: fvec_u_phi_Mloc(:,:)       !u_phi velocity in complex space
 !      complex(pfdp), allocatable :: fvec_uphi0_Mloc(:,:)       !u_phi velocity in complex space
      complex(pfdp), allocatable :: rhsvec_theta_Mloc(:,:)     !u_phi velocity in complex space
+     complex(pfdp), allocatable :: rhsvec_xi_Mloc(:,:)     !u_phi velocity in complex space
 !      complex(pfdp), allocatable :: rhsvec_psi_Mloc(:,:)     !u_phi velocity in complex space
      complex(pfdp), allocatable :: rhsvec_u_s_Mloc(:,:)     !u_phi velocity in complex space
      complex(pfdp), allocatable :: rhsvec_u_phi_Mloc(:,:)     !u_phi velocity in complex space
@@ -171,6 +175,7 @@ contains
     allocate(this%u_s_m_Mloc   (nMstart:nMstop,n_r_max))
     allocate(this%u_phi_m_Mloc (nMstart:nMstop,n_r_max))
     allocate(this%theta_Mloc   (nMstart:nMstop,n_r_max))
+    allocate(this%xi_m_Mloc   (nMstart:nMstop,n_r_max))
     allocate(this%psi_Mloc     (nMstart:nMstop,n_r_max))
     allocate(this%omega_Mloc     (nMstart:nMstop,n_r_max))
 !     allocate(this%uphi0_Mloc   (1,n_r_max))
@@ -189,6 +194,7 @@ contains
 
     allocate(this%fvec_omega_Mloc   (nMstart:nMstop,n_r_max))
     allocate(this%fvec_theta_Mloc   (nMstart:nMstop,n_r_max))
+    allocate(this%fvec_xi_Mloc   (nMstart:nMstop,n_r_max))
     allocate(this%fvec_u_phi_Mloc   (nMstart:nMstop,n_r_max))
     allocate(this%fvec_u_s_Mloc   (nMstart:nMstop,n_r_max))
 !     allocate(this%fvec_psi_Mloc   (nMstart:nMstop,n_r_max))
@@ -197,6 +203,7 @@ contains
 !     allocate(this%rhsvec_Mloc (nMstart:nMstop,n_r_max))
     allocate(this%rhsvec_omega_Mloc   (nMstart:nMstop,n_r_max))
     allocate(this%rhsvec_theta_Mloc   (nMstart:nMstop,n_r_max))
+    allocate(this%rhsvec_xi_Mloc   (nMstart:nMstop,n_r_max))
     allocate(this%rhsvec_u_phi_Mloc   (nMstart:nMstop,n_r_max))
     allocate(this%rhsvec_u_s_Mloc   (nMstart:nMstop,n_r_max))
 !     allocate(this%rhsvec_psi_Mloc   (nMstart:nMstop,n_r_max))
@@ -206,8 +213,8 @@ contains
 !        this%u_s_m_Mloc   = u_s
 
 
-    this%u_s_m_Mloc(:,:)    = us_Mloc(:,:)
-    this%u_phi_m_Mloc(:,:)  = up_Mloc(:,:)
+    this%u_s_m_Mloc    = us_Mloc
+    this%u_phi_m_Mloc  = up_Mloc
     this%u_s_m_Rloc   = 0.0
     this%u_phi_m_Rloc = 0.0
     this%theta_Mloc   = 0.0
@@ -373,7 +380,7 @@ contains
 !     use probin, only:  imex_stat ,nu, v
 
     use namelists, only:  imex_stat , n_modes_m,n_points_phi,n_points_r,&
-    &TdiffFac, amp_t,amp_u, r_cmb, r_icb,l_non_rot,l_vort!
+    &TdiffFac, amp_t,amp_u, r_cmb, r_icb,l_non_rot,l_vort,l_chem!
     use radial_functions, only: rscheme, r, or1, or2!, dtcond, rgrav
     use radial_der, only: get_ddr, get_dr
     use fourier, only: fft, ifft
@@ -472,12 +479,12 @@ contains
                  &           this%dtempdt_Rloc, this%dVsT_Rloc, this%dxidt_Rloc, this%dVsXi_Rloc, &
                  &           this%dpsidt_Rloc, this%dVsOm_Rloc, this%dtr_Rloc, this%dth_Rloc)
 
-     if ( l_heat ) then
+!      if ( l_heat ) then
         call transp_r2m(r2m_fields, this%dtempdt_Rloc, &
-                       &          this%fvec_xi_Mloc)
+                       &          this%fvec_theta_Mloc)
 
         call transp_r2m(r2m_fields, this%dVsT_Rloc, this%dVsT_Mloc)
-    end if
+!     end if
     
     if ( l_chem ) then
        call transp_r2m(r2m_fields, this%dxidt_Rloc, &
@@ -574,7 +581,7 @@ contains
   ! Solve for y and return f2 also
   !   y-dtq*f(y,t) = rhs
   subroutine f_comp(this, y, t, dtq, rhs, level_index, f,piece)
-  use fieldsLast, only: dTdt
+  use fieldsLast, only: dTdt,dXidt
 !     use probin, only:  imex_stat ,nu,v
     use namelists, only:  imex_stat , n_modes_m,n_points_phi,n_points_r,&
     &TdiffFac, amp_t,amp_u, r_cmb, r_icb,l_non_rot,nnodes,l_vort!    use radial_functions, only: rscheme, or1, or2!, dtcond, rgrav
@@ -666,7 +673,7 @@ contains
        call update_temp_co(this%theta_Mloc, this%tmphat_Mloc, this%buo_Mloc, dTdt, &
             &              lMat, l_log_next,dtq=dtq,work_Mloc_pfasst=this%rhsvec_theta_Mloc,int_mat=i_substep )
 
-       call update_xi_co(xi_Mloc, this%tmphat_Mloc, this%buo_Mloc, dxidt, &
+       call update_xi_co(this%xi_Mloc, this%tmphat_Mloc, this%buo_Mloc, dxidt, &
               &          lMat, l_log_next,dtq=dtq,work_Mloc_pfasst=this%rhsvec_xi_Mloc,int_mat=i_substep )     
        if (l_vort) then
 
@@ -707,7 +714,8 @@ contains
 !        this%fvec_uphi0_Mloc = (this%uphi0_Mloc - this%rhsvec_uphi0_Mloc) / dtq
 
 
-  
+  x_i_Mloc
+       fvec_xi = this%fvec_xi_Mloc
        fvec_theta = this%fvec_theta_Mloc
        fvec_omega = this%fvec_omega_Mloc
        fvec_u_s   = this%fvec_u_s_Mloc    
@@ -715,6 +723,7 @@ contains
 !        fvec_psi  = this%fvec_psi_Mloc    
 !        fvec_uphi0 =  this%fvec_uphi0_Mloc
          
+       xi = this%xi_Mloc 
        theta = this%theta_Mloc 
        omega = this%omega_Mloc
        u_s   = this%u_s_m_Mloc 
@@ -742,7 +751,7 @@ contains
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
   !> Routine to set initial condition.
   subroutine initial_condition(y_0)
-    use fields, only: temp_Mloc,om_Mloc,us_Mloc,up_Mloc
+    use fields, only: temp_Mloc,om_Mloc,us_Mloc,up_Mloc,xi_Mloc
 !     use namelists, only:  imex_stat , n_modes_m,n_points_phi,n_points_r,r_icb
 !     use radial_functions, only: rscheme, r, or1, or2!, dtcond, rgrav
 !        use constants, only: zero, one, two, three, ci, pi, half
@@ -750,13 +759,11 @@ contains
 !     use namelists, only:  imex_stat ,n_modes_m,n_points_phi,n_points_r,TdiffFac
 !     use radial_functions, only: r, or1, or2!, dtcond, rgrav
 
-!     type(pf_zndarray_t), intent(inout) :: y_0
     type(pizza_zndsysarray_t), intent(inout) :: y_0
-!     class(pf_encap_t),   intent(in   ) :: y_0
-!     integer,             intent(in   ) :: level_index !  Which level this is
     complex(pfdp), pointer :: theta_Mloc(:,:)
+    complex(pfdp), pointer :: x_i_Mloc(:,:)
     complex(pfdp), pointer :: omega_Mloc(:,:)
-    complex(pfdp), pointer :: psi_Mloc(:,:)
+!     complex(pfdp), pointer :: psi_Mloc(:,:)
     complex(pfdp), pointer :: u_phi_Mloc(:,:)
     complex(pfdp), pointer :: u_s_Mloc(:,:)
     complex(pfdp), pointer :: uphi0_Mloc(:,:)
@@ -768,13 +775,14 @@ contains
     u_phi_Mloc => get_array2d(y_0,2)
     u_s_Mloc   => get_array2d(y_0,3)
     theta_Mloc => get_array2d(y_0,4)
+    x_i_Mloc => get_array2d(y_0,5)
 !     uphi0_Mloc => get_array2d(y_0,4)
     
     omega_Mloc = om_Mloc
     u_phi_Mloc = up_Mloc
     u_s_Mloc   = us_Mloc
     theta_Mloc = temp_Mloc
-       
+    x_i_Mloc = xi_Mloc
 
 
   end subroutine initial_condition
