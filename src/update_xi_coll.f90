@@ -70,12 +70,15 @@ contains
       class(type_tscheme), intent(in) :: tscheme
       logical,             intent(in) :: lMat
       logical,             intent(in) :: l_log_next
-
+      real(cp),intent(in),optional    :: dtq
+      integer,intent(in),optional     :: int_mat
+      
       !-- Output variables
       complex(cp),       intent(out) :: xi_Mloc(nMstart:nMstop, n_r_max)
       complex(cp),       intent(out) :: dxi_Mloc(nMstart:nMstop, n_r_max)
       type(type_tarray), intent(inout) :: dxidt
       complex(cp),       intent(inout) :: buo_Mloc(nMstart:nMstop,n_r_max)
+      complex(cp),optional :: work_Mloc_pfasst(nMstart:nMstop,n_r_max)
 
       !-- Local variables
       logical :: l_init_buo
