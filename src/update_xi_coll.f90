@@ -20,11 +20,11 @@ module update_xi_coll
    
    private
 
-   logical,  allocatable :: lXimat(:)
-   real(cp), allocatable :: xiMat(:, :, :)
-   integer,  allocatable :: xiPivot(:, :)
+   logical,  allocatable :: lXimat(:,:)
+   real(cp), allocatable :: xiMat(:, :, :,:)
+   integer,  allocatable :: xiPivot(:, :,:)
 #ifdef WITH_PRECOND_S
-   real(cp), allocatable :: xiMat_fac(:,:)
+   real(cp), allocatable :: xiMat_fac(:,:,:)
 #endif
    complex(cp), allocatable :: rhs(:)
 
@@ -35,16 +35,16 @@ contains
 
    subroutine initialize_xi_coll
 
-      allocate( lXimat(nMstart:nMstop) )
-      lXimat(:)=.false.
+      allocate( lXimat(nMstart:nMstop,(nnodes-1)) )
+      lXimat(:,:)=.false.
       bytes_allocated = bytes_allocated+(nMstop-nMstart+1)*SIZEOF_LOGICAL
 
-      allocate( xiMat(n_r_max, n_r_max, nMstart:nMstop) )
-      allocate( xiPivot(n_r_max, nMstart:nMstop) )
+      allocate( xiMat(n_r_max, n_r_max, nMstart:nMstop,(nnodes-1)) )
+      allocate( xiPivot(n_r_max, nMstart:nMstop,(nnodes-1)) )
       bytes_allocated = bytes_allocated+(nMstop-nMstart+1)*n_r_max*n_r_max* &
       &                 SIZEOF_DEF_REAL+n_r_max*(nMstop-nMstart+1)*SIZEOF_INTEGER
 #ifdef WITH_PRECOND_S
-      allocate( xiMat_fac(n_r_max, nMstart:nMstop) )
+      allocate( xiMat_fac(n_r_max, nMstart:nMstop,(nnodes-1)) )
       bytes_allocated = bytes_allocated+(nMstop-nMstart+1)*n_r_max*  &
       &                 SIZEOF_DEF_REAL
 #endif
@@ -67,7 +67,7 @@ contains
               &              tscheme, lMat, l_log_next,dtq,work_Mloc_pfasst,int_mat)
 
       !-- Input variables
-      class(type_tscheme), intent(in) :: tscheme
+      class(type_tscheme),optional, intent(in) :: tscheme
       logical,             intent(in) :: lMat
       logical,             intent(in) :: l_log_next
       real(cp),intent(in),optional    :: dtq
@@ -90,7 +90,7 @@ contains
          i_mat=1
       endif
       
-      if ( lMat ) lXiMat(:)=.false.
+      if ( lMat ) lXiMat(:,i_mat)=.false.
   
       if (present(dtq)) then
       
@@ -115,22 +115,22 @@ contains
 
             if ( .not. lXimat(n_m) ) then
 #ifdef WITH_PRECOND_S
-               call get_xiMat(tscheme, m, xiMat(:,:,n_m), xiPivot(:,n_m), &
-                    &         xiMat_fac(:,n_m),dtq=dtq)
+               call get_xiMat(tscheme, m, xiMat(:,:,n_m,i_mat), xiPivot(:,n_m,i_mat), &
+                    &         xiMat_fac(:,n_m,i_mat),dtq=dtq)
 #else
-               call get_xiMat(tscheme, m, xiMat(:,:,n_m), xiPivot(:,n_m),dtq=dtq)
+               call get_xiMat(tscheme, m, xiMat(:,:,n_m,i_mat), xiPivot(:,n_m,i_mat),dtq=dtq)
 #endif
-               lXimat(n_m)=.true.
+               lXimat(n_m,i_mat)=.true.
             end if
          else
             if ( .not. lXimat(n_m) ) then
 #ifdef WITH_PRECOND_S
-               call get_xiMat(tscheme, m, xiMat(:,:,n_m), xiPivot(:,n_m), &
-                    &         xiMat_fac(:,n_m))
+               call get_xiMat(tscheme, m, xiMat(:,:,n_m,i_mat), xiPivot(:,n_m,i_mat), &
+                    &         xiMat_fac(:,n_m,i_mat))
 #else
-               call get_xiMat(tscheme, m, xiMat(:,:,n_m), xiPivot(:,n_m))
+               call get_xiMat(tscheme, m, xiMat(:,:,n_m,i_mat), xiPivot(:,n_m,i_mat))
 #endif
-               lXimat(n_m)=.true.
+               lXimat(n_m,i_mat)=.true.
             end if
          endif
          
@@ -290,14 +290,15 @@ contains
    end subroutine get_xi_rhs_imp_coll
 !------------------------------------------------------------------------------
 #ifdef WITH_PRECOND_S
-   subroutine get_xiMat(tscheme, m, tMat, tPivot, tMat_fac)
+   subroutine get_xiMat(tscheme, m, tMat, tPivot, tMat_fac,dtq)
 #else
-   subroutine get_xiMat(tscheme, m, tMat, tPivot)
+   subroutine get_xiMat(tscheme, m, tMat, tPivot,dtq)
 #endif
 
       !-- Input variables
       class(type_tscheme), intent(in) :: tscheme        ! time step
       integer,             intent(in) :: m
+      real(cp), intent(in),optional :: dtq
 
       !-- Output variables
       real(cp), intent(out) :: tMat(n_r_max,n_r_max)
@@ -335,17 +336,29 @@ contains
       end if
 
       !----- Other points:
-      do nR_out=1,n_r_max
-         do nR=2,n_r_max-1
-            tMat(nR,nR_out)= rscheme%rnorm * (                          &
-            &                                 rscheme%rMat(nR,nR_out) - &
-            &            tscheme%wimp_lin(1)*XidiffFac*hdif_Xi(n_m)*(   &
-            &                               rscheme%d2rMat(nR,nR_out) + &
-            &          or1(nR)*              rscheme%drMat(nR,nR_out) - &
-            &      dm2*or2(nR)*               rscheme%rMat(nR,nR_out) ) )
+      if (present(dtq)) then
+         do nR_out=1,n_r_max
+            do nR=2,n_r_max-1
+               tMat(nR,nR_out)= rscheme%rnorm * (                          &
+               &                                 rscheme%rMat(nR,nR_out) - &
+               &                            dtq*XidiffFac*hdif_Xi(n_m)*(   &
+               &                               rscheme%d2rMat(nR,nR_out) + &
+               &          or1(nR)*              rscheme%drMat(nR,nR_out) - &
+               &      dm2*or2(nR)*               rscheme%rMat(nR,nR_out) ) )
+            end do
          end do
-      end do
-
+      else
+         do nR_out=1,n_r_max
+            do nR=2,n_r_max-1
+               tMat(nR,nR_out)= rscheme%rnorm * (                          &
+               &                                 rscheme%rMat(nR,nR_out) - &
+               &            tscheme%wimp_lin(1)*XidiffFac*hdif_Xi(n_m)*(   &
+               &                               rscheme%d2rMat(nR,nR_out) + &
+               &          or1(nR)*              rscheme%drMat(nR,nR_out) - &
+               &      dm2*or2(nR)*               rscheme%rMat(nR,nR_out) ) )
+            end do
+         end do      
+      endif
       !----- Factor for highest and lowest cheb:
       do nR=1,n_r_max
          tMat(nR,1)      =rscheme%boundary_fac*tMat(nR,1)
