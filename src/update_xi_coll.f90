@@ -148,7 +148,7 @@ contains
          end do
 #endif
 
-         call solve_full_mat(xiMat(:,:,n_m,i_mat), n_r_max, n_r_max, xiPivot(:, n_m), &
+         call solve_full_mat(xiMat(:,:,n_m,i_mat), n_r_max, n_r_max, xiPivot(:, n_m,i_mat), &
               &              rhs(:))
 
          do n_r_out=1,rscheme%n_max
