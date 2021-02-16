@@ -38,6 +38,7 @@ contains
     complex(pfdp), allocatable  :: u_s_Mloc(:,:)
     complex(pfdp), allocatable  :: omega_Mloc(:,:)
     complex(pfdp), allocatable  :: xi_Mloc(:,:)
+    complex(pfdp), allocatable  :: dxi_Mloc(:,:)
 
     real(pfdp) :: E_temp_radial(n_points_r(level_index))
     real(pfdp) :: E_temp
@@ -59,6 +60,7 @@ contains
     allocate(u_s_Mloc(nMstart:nMstop,n_points_r(level_index)))
     allocate(omega_Mloc(nMstart:nMstop,n_points_r(level_index)))
     allocate(xi_Mloc(nMstart:nMstop,n_points_r(level_index)))
+    allocate(dxi_Mloc(nMstart:nMstop,n_points_r(level_index)))
 
 
     
@@ -67,16 +69,18 @@ contains
     u_s    => get_array2d(pf%levels(level_index)%qend,3)
 !     psi    => get_array2d(pf%levels(level_index)%qend,2)
     theta  => get_array2d(pf%levels(level_index)%qend,4)
-    xi  => get_array2d(pf%levels(level_index)%qend,5)
-
+    if ( l_chem ) then
+       xi  => get_array2d(pf%levels(level_index)%qend,5)
+    endif
     
     Temp_Mloc  = theta
     u_phi_Mloc = u_phi
     u_s_Mloc   = u_s
     omega_Mloc = omega
-    xi_Mloc    = xi
-!     
-
+    if ( l_chem ) then
+       xi_Mloc    = xi
+    endif    
+    dxi_Mloc =0.0
     
     if (pf%state%step.EQ.0) then
     frame_counter=1
@@ -112,7 +116,7 @@ contains
     
     
     call get_time_series(pf%state%t0+pf%state%dt, u_s_Mloc, u_phi_Mloc, omega_Mloc, Temp_Mloc, &
-              &    us2_r, up2_r, enstrophy_r, flux_r,xi_Mloc=xi_Mloc)
+              &    us2_r, up2_r, enstrophy_r, flux_r,xi_Mloc=xi_Mloc,dxi_Mloc=dxi_Mloc)
    
 
     
@@ -121,6 +125,7 @@ contains
     deallocate(u_s_Mloc)
     deallocate(omega_Mloc)
     deallocate(xi_Mloc)
+    deallocate(dxi_Mloc)
     
 !     
   end subroutine time_series
