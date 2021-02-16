@@ -120,7 +120,7 @@ contains
       call MPI_Barrier(Comm_Pizza, ierr)
       if (Pfasst_stepping) then
       
-         call run_pfasst_pizza(Comm_LIBPFASST)
+         call run_pfasst_pizza(Comm_LIBPFASST,timers)
          
       else
       
@@ -367,14 +367,14 @@ contains
 
           end do outer ! end of time stepping !
 
+      end if
+
           !-- Average timers over ranks and number of calls
           call timers%finalize(n_time_steps_go)
 
           !-- Write timers info in log file  and on display
           call timers%write_log(n_log_file)
           call timers%write_log(6)
-
-      end if
    end subroutine time_loop
 !-------------------------------------------------------------------------------
    subroutine start_from_another_scheme(l_bridge_step, n_time_step, tscheme)

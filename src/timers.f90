@@ -23,6 +23,7 @@ module timers_mod
       integer :: n_solve_calls
       integer :: n_dct_calls
       integer :: n_lu_calls
+      integer :: n_pfasst_run
       real(cp) :: r_loop      ! Timer of the radial loop (nonlinear terms)
       real(cp) :: m_loop      ! Timer of the m loop (linear solve/time advance)
       real(cp) :: io          ! Timer for I/O
@@ -33,6 +34,7 @@ module timers_mod
       real(cp) :: solve       ! Timer for one linear solve
       real(cp) :: dct         ! Timer for DCTs
       real(cp) :: tot         ! Total runtime
+      real(cp) :: pfasst_run  ! Timer for pfasst run
    contains
       procedure :: initialize
       procedure :: finalize
@@ -57,16 +59,18 @@ contains
       this%n_solve_calls = 0
       this%n_dct_calls   = 0
       this%n_lu_calls    = 0
-      this%r_loop     = 0.0_cp
-      this%m_loop     = 0.0_cp
-      this%io         = 0.0_cp
-      this%mpi_comms  = 0.0_cp
-      this%m_loop_mat = 0.0_cp
-      this%fft        = 0.0_cp
-      this%lu         = 0.0_cp
-      this%solve      = 0.0_cp
-      this%dct        = 0.0_cp
-      this%tot        = 0.0_cp
+      this%n_pfasst_run  = 0
+      this%r_loop      = 0.0_cp
+      this%m_loop      = 0.0_cp
+      this%io          = 0.0_cp
+      this%mpi_comms   = 0.0_cp
+      this%m_loop_mat  = 0.0_cp
+      this%fft         = 0.0_cp
+      this%lu          = 0.0_cp
+      this%solve       = 0.0_cp
+      this%dct         = 0.0_cp
+      this%tot         = 0.0_cp
+      this%pfasst_run  = 0.0_cp
 
    end subroutine initialize
 !------------------------------------------------------------------------------
@@ -106,6 +110,8 @@ contains
       call my_reduce_mean(this%solve, 0)
       this%dct = this%dct/this%n_dct_calls
       call my_reduce_mean(this%dct, 0)
+      this%pfasst_run = this%pfasst_run/this%n_pfasst_run
+      call my_reduce_mean(this%pfasst_run, 0)
 
    end subroutine finalize
 !------------------------------------------------------------------------------
@@ -138,7 +144,9 @@ contains
          call formatTime(n, &
          &    '! Mean wall time for one linear solve (psi) :',this%solve)
          call formatTime(n, &
-         &    '! Mean wall time for one time step          :',this%tot)
+         &    '! Mean wall time for one time step          :',this%tot)   
+         call formatTime(n, &
+         &    '! Mean wall time for one pfasst time step          :',this%pfasst_run)
       end if
 
    end subroutine write_log

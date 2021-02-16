@@ -492,14 +492,12 @@ contains
             end if
 
             if ( l_chem ) then
-               if (present(xi_Mloc)) then
                   chem_power(n_r)=chem_power(n_r)+cc22real(us_Mloc(n_m,n_r), &
                   &                                        xi_Mloc(n_m,n_r), m)
 
                   sh_vol_r(n_r) =sh_vol_r(n_r)+cc2real(dxi_Mloc(n_m,n_r),m)  &
                   &              +real(m,cp)*real(m,cp)*or2(n_r)*            &
                   &                             cc2real(xi_Mloc(n_m,n_r),m)
-               endif
             end if
 
             if ( m == 0 ) then
@@ -792,7 +790,6 @@ contains
          !------
 
          !-- Top and bottom temperatures
-         if (present(xi_Mloc)) then
             n_m0 = m2idx(0)
             xiTop = real(xi_Mloc(n_m0,1))+xicond(1)
             xiBot = real(xi_Mloc(n_m0,n_r_max))+xicond(n_r_max)
@@ -819,7 +816,6 @@ contains
             write(n_chem_file, '(1P, ES20.12, 6ES16.8)') time, ShTop, ShBot,   &
             &                                            Sh_vol, xiTop,        &
             &                                            xiBot, beta_xi
-         endif
       end if
          
    end subroutine get_time_series
