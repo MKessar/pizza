@@ -45,7 +45,6 @@ module pf_my_sweeper
      complex(pfdp), allocatable :: u_s_m_Rloc(:,:)      !u_s velocity in complex space
      complex(pfdp), allocatable :: u_phi_m_Rloc(:,:)    !u_phi velocity in complex space
      complex(pfdp), allocatable :: theta_m_Rloc(:,:)      !u_phi velocity in complex space
-     complex(pfdp), allocatable :: xi_m_Mloc(:,:)      !u_phi velocity in complex space
      complex(pfdp), allocatable :: omega_Mloc(:,:)      !u_phi velocity in complex space
      complex(pfdp), allocatable :: theta_Mloc(:,:)      !u_phi velocity in complex space
      complex(pfdp), allocatable :: xi_Mloc(:,:)      !u_phi velocity in complex space
@@ -178,7 +177,7 @@ contains
     allocate(this%u_s_m_Mloc   (nMstart:nMstop,n_r_max))
     allocate(this%u_phi_m_Mloc (nMstart:nMstop,n_r_max))
     allocate(this%theta_Mloc   (nMstart:nMstop,n_r_max))
-    allocate(this%xi_m_Mloc   (nMstart:nMstop,n_r_max))
+    allocate(this%xi_Mloc   (nMstart:nMstop,n_r_max))
     allocate(this%psi_Mloc     (nMstart:nMstop,n_r_max))
     allocate(this%omega_Mloc     (nMstart:nMstop,n_r_max))
 !     allocate(this%uphi0_Mloc   (1,n_r_max))
@@ -456,7 +455,7 @@ contains
     this%u_phi_m_Mloc = u_phi
     this%u_s_m_Mloc   = u_s
     if ( l_chem ) then
-       this%xi_m_Mloc      = xi
+       this%xi_Mloc      = xi
     endif
     
     select case (piece)
@@ -470,7 +469,7 @@ contains
     call transp_m2r(m2r_fields, this%theta_Mloc, this%theta_m_Rloc)
     call transp_m2r(m2r_fields, this%u_s_m_Mloc, this%u_s_m_Rloc)
     call transp_m2r(m2r_fields, this%u_phi_m_Mloc, this%u_phi_m_Rloc)
-    call transp_m2r(m2r_fields, this%xi_m_Mloc, this%xi_m_Rloc)
+    call transp_m2r(m2r_fields, this%xi_Mloc, this%xi_m_Rloc)
 
     call radial_loop(this%u_s_m_Rloc, this%u_phi_m_Rloc, this%omega_m_Rloc, this%theta_m_Rloc, this%xi_m_Rloc,   &
                  &           this%dtempdt_Rloc, this%dVsT_Rloc, this%dxidt_Rloc, this%dVsXi_Rloc, &
@@ -505,7 +504,7 @@ contains
          &                    this%dVsT_Mloc, this%buo_Mloc,    &
          &                    this%fvec_theta_Mloc)
     if ( l_chem ) then 
-       call finish_exp_xi_coll(this%xi_m_Mloc, this%u_s_m_Mloc, this%dVsXi_Mloc, &
+       call finish_exp_xi_coll(this%xi_Mloc, this%u_s_m_Mloc, this%dVsXi_Mloc, &
             &                  this%buo_Mloc,                     &
             &                  this%fvec_xi_Mloc)
     endif         
@@ -532,11 +531,11 @@ contains
       
     case (2)  ! Implicit piece
           call get_temp_rhs_imp_coll(this%theta_Mloc, this%tmphat_Mloc, this%tmphat_bis_Mloc, &
-              &                     this%fvec_theta_Mloc, .true.)
+              &                     this%fvec_theta_Mloc, l_calc_lin_rhs=.true.)
     if ( l_chem ) then
 
-          call get_xi_rhs_imp_coll(this%xi_m_Mloc, this%tmphat_Mloc, this%tmphat_bis_Mloc, &
-              &                   this%fvec_xi_Mloc, .true.)
+          call get_xi_rhs_imp_coll(this%xi_Mloc, this%tmphat_Mloc, this%tmphat_bis_Mloc, &
+              &                   this%fvec_xi_Mloc, l_calc_lin_rhs=.true.)
     endif
 
           if (l_vort) then
@@ -625,27 +624,26 @@ contains
        u_phi  => get_array2d(y,2)
        u_s    => get_array2d(y,3)
        theta  => get_array2d(y,4)
-    if ( l_chem ) then
-       
-       xi     => get_array2d(y,5)
-    endif
-     
+       if ( l_chem ) then
+           xi     => get_array2d(y,5)
+       endif
+      
        fvec_omega => get_array2d(f,1)
        fvec_u_phi => get_array2d(f,2)
        fvec_u_s   => get_array2d(f,3)
        fvec_theta => get_array2d(f,4)
-    if ( l_chem ) then
+       if ( l_chem ) then
    
-       fvec_xi    => get_array2d(f,5)
-    endif
+          fvec_xi    => get_array2d(f,5)
+       endif
     
        rhs_omega => get_array2d(rhs,1)
        rhs_u_phi => get_array2d(rhs,2)
        rhs_u_s   => get_array2d(rhs,3)
        rhs_theta => get_array2d(rhs,4)
-    if ( l_chem ) then
-       rhs_xi    => get_array2d(rhs,5)
-    endif       
+       if ( l_chem ) then
+          rhs_xi    => get_array2d(rhs,5)
+       endif       
 
        this%omega_Mloc   = omega
        this%u_phi_m_Mloc = u_phi
@@ -699,7 +697,7 @@ contains
        !  The function is easy to derive
        this%fvec_theta_Mloc = ( this%theta_Mloc - this%rhsvec_theta_Mloc ) / dtq
        if ( l_chem ) then
-          this%fvec_xi_Mloc    = ( this%xi_m_Mloc  - this%rhsvec_xi_Mloc    ) / dtq
+          this%fvec_xi_Mloc = ( this%xi_Mloc  - this%rhsvec_xi_Mloc    ) / dtq
        endif
        this%fvec_u_s_Mloc   = 0.0_8
        
@@ -731,8 +729,7 @@ contains
        fvec_omega = this%fvec_omega_Mloc
        fvec_u_s   = this%fvec_u_s_Mloc    
        fvec_u_phi = this%fvec_u_phi_Mloc    
-!        fvec_psi  = this%fvec_psi_Mloc    
-!        fvec_uphi0 =  this%fvec_uphi0_Mloc
+
 
        if ( l_chem ) then       
           xi = this%xi_Mloc 
@@ -742,8 +739,7 @@ contains
        omega = this%omega_Mloc
        u_s   = this%u_s_m_Mloc 
        u_phi = this%u_phi_m_Mloc 
-!        psi   = this%psi_Mloc 
-!        uphi0 = this%uphi0_Mloc
+
    
     else
        print *,'Bad piece in f_comp ',piece

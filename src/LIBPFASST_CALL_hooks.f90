@@ -27,6 +27,8 @@ contains
     use blocking, only: nMstart, nMstop!,nRstart, nRstop
     use output_frames, only: write_snapshot_mloc
     use outputs, only: get_time_series
+    use radial_der, only: get_dr
+    
     type(pf_pfasst_t), intent(inout) :: pf
     integer, intent(in) :: level_index
 
@@ -63,14 +65,12 @@ contains
     allocate(dxi_Mloc(nMstart:nMstop,n_points_r(level_index)))
 
 
-    
-    omega  => get_array2d(pf%levels(level_index)%qend,1)
-    u_phi  => get_array2d(pf%levels(level_index)%qend,2)
-    u_s    => get_array2d(pf%levels(level_index)%qend,3)
-!     psi    => get_array2d(pf%levels(level_index)%qend,2)
-    theta  => get_array2d(pf%levels(level_index)%qend,4)
+    omega => get_array2d(pf%levels(level_index)%qend,1)
+    u_phi => get_array2d(pf%levels(level_index)%qend,2)
+    u_s   => get_array2d(pf%levels(level_index)%qend,3)
+    theta => get_array2d(pf%levels(level_index)%qend,4)
     if ( l_chem ) then
-       xi  => get_array2d(pf%levels(level_index)%qend,5)
+       xi => get_array2d(pf%levels(level_index)%qend,5)
     endif
     
     Temp_Mloc  = theta
@@ -78,47 +78,45 @@ contains
     u_s_Mloc   = u_s
     omega_Mloc = omega
     if ( l_chem ) then
-       xi_Mloc    = xi
+       xi_Mloc = xi
     endif    
-    dxi_Mloc =0.0
     
     if (pf%state%step.EQ.0) then
-    frame_counter=1
+       frame_counter = 1
     endif 
-
-    step=pf%state%step+1
-    mod_step=mod(step,n_frame_step)
-
+    
+    step     = pf%state%step + 1
+    mod_step = mod(step,n_frame_step)
+    
     if ( mod_step .EQ. 0 )  then
 
     
-         write(frame_name, '(A,I0,A,I0,A,A)') 'frame_temp_',frame_counter,'TimeProc_',Color_Pizza,'.test'
+         write(frame_name, '(A,I0,A,I0,A,A)') 'frame_temp_', frame_counter, 'TimeProc_', Color_Pizza, '.test'
          call write_snapshot_mloc(frame_name, pf%state%t0+pf%state%dt, Temp_Mloc)   
 
-         write(frame_name, '(A,I0,A,I0,A,A)') 'frame_us_',frame_counter,'TimeProc_',Color_Pizza,'.test'
+         write(frame_name, '(A,I0,A,I0,A,A)') 'frame_us_', frame_counter, 'TimeProc_', Color_Pizza, '.test'
          call write_snapshot_mloc(frame_name, pf%state%t0+pf%state%dt, u_s_Mloc)
 
-         write(frame_name, '(A,I0,A,I0,A,A)') 'frame_up_',frame_counter,'TimeProc_',Color_Pizza,'.test'
+         write(frame_name, '(A,I0,A,I0,A,A)') 'frame_up_', frame_counter, 'TimeProc_', Color_Pizza, '.test'
          call write_snapshot_mloc(frame_name, pf%state%t0+pf%state%dt, u_phi_Mloc)
 
-         write(frame_name, '(A,I0,A,I0,A,A)') 'frame_om_',frame_counter,'TimeProc_',Color_Pizza,'.test'
+         write(frame_name, '(A,I0,A,I0,A,A)') 'frame_om_', frame_counter, 'TimeProc_', Color_Pizza, '.test'
          call write_snapshot_mloc(frame_name, pf%state%t0+pf%state%dt, omega_Mloc)   
 
          if ( l_chem ) then
-            write(frame_name, '(A,I0,A,I0,A,A)') 'frame_xi_',frame_counter,'TimeProc_',Color_Pizza,'.test'
+            write(frame_name, '(A,I0,A,I0,A,A)') 'frame_xi_', frame_counter, 'TimeProc_', Color_Pizza, '.test'
             call write_snapshot_mloc(frame_name, pf%state%t0+pf%state%dt, xi_Mloc)
-         end if       
+         end if
 
-       frame_counter= frame_counter +1
+         frame_counter = frame_counter + 1
 
     endif
+    
+    call get_dr(xi_Mloc, dxi_Mloc, nMstart, nMstop, n_points_r(level_index), rscheme)
 
-    
-    
     call get_time_series(pf%state%t0+pf%state%dt, u_s_Mloc, u_phi_Mloc, omega_Mloc, Temp_Mloc, &
               &    us2_r, up2_r, enstrophy_r, flux_r,xi_Mloc=xi_Mloc,dxi_Mloc=dxi_Mloc)
    
-
     
     deallocate(Temp_Mloc)
     deallocate(u_phi_Mloc)
@@ -126,7 +124,6 @@ contains
     deallocate(omega_Mloc)
     deallocate(xi_Mloc)
     deallocate(dxi_Mloc)
-    
 !     
   end subroutine time_series
 end module hooks
